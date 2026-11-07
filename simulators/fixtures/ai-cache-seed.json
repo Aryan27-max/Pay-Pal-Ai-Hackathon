@@ -1,0 +1,128 @@
+{
+  "note": "Validated AI results for the demo fixtures only (scores + explanation). Imported by npm run seed.",
+  "promptVersion": "7a1f91aec554",
+  "rows": [
+    {
+      "key": "afb26726a8f6d48797a0a5567e3b91972c212825e78e99ffe58eb3755f7fe052",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "photoSha256": "135ef68f26f0d8eeb7e3092262f472fb00b1ad2b4215a97d840c5c755acacd13",
+      "messageSha256": "7e773175bbd969115c04fb5873403133c5f085d2290e0ad8a6c09ae6d6574538",
+      "promptVersion": "7a1f91aec554",
+      "assessment": {
+        "red_flags": [],
+        "explanation": "The photo clearly shows significant street-level flooding and standing water around buildings, perfectly consistent with a major river flood. The claimant's typed message provides a detailed, specific first-person account of the flooding in St. Charles County starting on the correct day, matching the visual evidence.",
+        "language_detected": "en",
+        "message_consistency": 1,
+        "photo_matches_disaster": 0.95,
+        "photo_ai_generated_risk": 0.05
+      }
+    },
+    {
+      "key": "e345d1df2b26f4a8a8609bee3befc6bfa727cf9ff00e16c742b5b69511566ba5",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "photoSha256": "2ea34e693b1507ee0820b8903bf64285935fa8fd74e72f175fdff958cab98743",
+      "messageSha256": "a4f92ef488acf408f10dcbdaa1fc9ef78096edd9dc2c07e9f1b78a6fd1a2984b",
+      "promptVersion": "7a1f91aec554",
+      "assessment": {
+        "red_flags": [],
+        "explanation": "The photograph clearly shows water-damaged household belongings and furniture placed outside on the lawn for drying and disposal after a flood. The claimant's message provides a specific, first-person account of the flood in St. Charles County, perfectly matching the disaster event and context.",
+        "language_detected": "es",
+        "message_consistency": 0.95,
+        "photo_matches_disaster": 0.85,
+        "photo_ai_generated_risk": 0.05
+      }
+    },
+    {
+      "key": "0eeb608f8f42c7239c58f50a16b5ce1933e7f4227c8828227881bd053ad6d915",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "photoSha256": "21e0a982893dac7100869a26d78a8316e83efcd068f44f1b898a7dda95ee1c2a",
+      "messageSha256": "881f4865fc4d81f2fadac96ea4ee577a04d28fab8f18fd7858bf64de97801099",
+      "promptVersion": "7a1f91aec554",
+      "assessment": {
+        "red_flags": [],
+        "explanation": "The submitted photo clearly shows significant standing floodwaters surrounding rural buildings and machinery, highly consistent with the described Missouri River flood event. The claimant's message provides a specific, first-person account of the impacts in St. Charles County, including power outages and flooded crawl spaces. The image appears authentic with no obvious signs of AI generation.",
+        "language_detected": "en",
+        "message_consistency": 0.98,
+        "photo_matches_disaster": 0.95,
+        "photo_ai_generated_risk": 0.05
+      }
+    },
+    {
+      "key": "a86885c44572962eea3ce3172f839162f56b5105f051a58368ff4ba0d63604eb",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "photoSha256": "3a1a11257472b06e1ac1043ee5f2bde5ad28cafb0c30be77a9b3d343c7fece99",
+      "messageSha256": "098e639c170121aadbadc77cde7c71567c8818f9092474c69b85fb39615ba1c6",
+      "promptVersion": "7a1f91aec554",
+      "assessment": {
+        "red_flags": [
+          "Stock photo of flooding used"
+        ],
+        "explanation": "The attached image clearly shows severe widespread flooding consistent with a major river overflow, but appears to be a wide aerial stock photo rather than a personal snapshot. The claimant's message provides a detailed, plausible account of personal loss and needs related to the flooding event.",
+        "language_detected": "en",
+        "message_consistency": 0.95,
+        "photo_matches_disaster": 0.9,
+        "photo_ai_generated_risk": 0.1
+      }
+    },
+    {
+      "key": "a610385bf0009ea6ca00ec968517d20f633776a8fce2c507b7885be639c039eb",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "photoSha256": "5bac9072dc54bac613a250bf2d65145d6b411fc1aa1919c64d5c2d65b1476f40",
+      "messageSha256": "97060baa78d0f17993d3c40c59a67ea1b4e6ca6d4cdbfd5f2f1d561cd76b0fd6",
+      "promptVersion": "7a1f91aec554",
+      "assessment": {
+        "red_flags": [
+          "Photo shows an ordinary neighborhood with no visible flood damage"
+        ],
+        "explanation": "The claimant provides a detailed and plausible description of flooding in St. Charles County consistent with the event. However, the provided photograph shows a completely normal, dry residential street with no visible flood damage or standing water.",
+        "language_detected": "en",
+        "message_consistency": 0.95,
+        "photo_matches_disaster": 0.1,
+        "photo_ai_generated_risk": 0.1
+      }
+    },
+    {
+      "key": "9e7e30b64ff570daa51c06405891e70a07e0b80f6786286f084b80b299aa900f",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "photoSha256": "3cd1e5c40906503754ea62c36be63eff766e03bf8bd5c5915f4e057cf2fbdc3d",
+      "messageSha256": "96498a86131816807dd5c9287d5eccbbc65d2056ca405563bb240e3649de8ed7",
+      "promptVersion": "7a1f91aec554",
+      "assessment": {
+        "red_flags": [
+          "Possible AI-generated image artifacts in architecture and overhead wires",
+          "Urban canyon street scene does not match typical St. Charles County suburban/river geography"
+        ],
+        "explanation": "The message provides a consistent, first-person account of being displaced by the flood in St. Charles County. However, the accompanying photo displays strong signs of being AI-generated with surreal architectural details and unrealistic overhead utility lines, and the urban canyon setting is inconsistent with the local geography.",
+        "language_detected": "en",
+        "message_consistency": 0.95,
+        "photo_matches_disaster": 0.85,
+        "photo_ai_generated_risk": 0.88
+      }
+    },
+    {
+      "key": "c213e57a806ae2d38fe821925c1ad6acd60d22e1def645f6f3404ffaea288b60",
+      "provider": "gemini",
+      "model": "gemini-3.5-flash-lite",
+      "photoSha256": "9dbc66da983705e9cc1fbc459c4d98b134c3b9c08b7740460677f06ca75928b6",
+      "messageSha256": "8dc3ec968a645ee7f1e02790474f49fa863b10ed981516af7cafb76e1190cba6",
+      "promptVersion": "7a1f91aec554",
+      "assessment": {
+        "red_flags": [
+          "Location mismatch: message describes an earthquake in Kathmandu, Nepal, while disaster is a flood in Missouri, USA",
+          "Disaster type mismatch: message refers to an earthquake, while event is a flood"
+        ],
+        "explanation": "The submitted photo clearly shows severe flood damage consistent with a river flood, but the claimant's message completely contradicts the event by describing an earthquake in Nepal. Consequently, message consistency is extremely low and requires careful manual review.",
+        "language_detected": "en",
+        "message_consistency": 0.05,
+        "photo_matches_disaster": 0.95,
+        "photo_ai_generated_risk": 0.1
+      }
+    }
+  ]
+}

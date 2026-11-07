@@ -44,6 +44,16 @@
                   "value": "{{paypalClientSecret}}"
                 }
               ]
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "client_credentials",
+                  "type": "text"
+                }
+              ]
             }
           }
         },
@@ -133,6 +143,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "if(!pm.collectionVariables.get(\"payoutBatchId\")){pm.test(\"skipped: no payout batch yet in this run\",()=>true);return;}",
                   "pm.test(\"200\",()=>pm.response.to.have.status(200));",
                   "const j=pm.response.json();pm.test(\"batch status enum\",()=>pm.expect([\"DENIED\",\"PENDING\",\"PROCESSING\",\"SUCCESS\",\"CANCELED\"]).to.include(j.batch_header.batch_status));"
                 ]
@@ -169,7 +180,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"200\",()=>pm.response.to.have.status(200));",
-                  "const j=pm.response.json();pm.test(\"amounts are strings\",()=>pm.expect(j.availableUsd).to.match(/^-?d+.d{2}$/));"
+                  "const j=pm.response.json();pm.test(\"amounts are money strings\",()=>pm.expect(j.availableUsd).to.match(/^-?\\d+\\.\\d{2}$/));"
                 ]
               }
             }
@@ -178,6 +189,52 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/pool"
+          }
+        },
+        {
+          "name": "Public trail feed (dashboard)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test(\"has pool + lists\",()=>{pm.expect(j.pool).to.have.property(\"paidOutUsd\");pm.expect(j.payouts).to.be.an(\"array\");pm.expect(j.trailEntries).to.be.an(\"array\");});",
+                  "pm.test(\"redacted: no email address anywhere\",()=>pm.expect(pm.response.text()).to.not.match(/[\\w.+-]+@[\\w-]+\\.[\\w.]+/));",
+                  "pm.test(\"memos follow RS|v1\",()=>j.trailEntries.forEach((t)=>pm.expect(t.memo).to.match(/^RS\\|v1\\|[a-z._]+\\|[cd]_[0-9a-f]{20}\\|\\d+\\.\\d{2}\\|[0-9a-f]{64}$/)));",
+                  "const d=j.donations.find((x)=>x.donor); if(d) pm.collectionVariables.set(\"donorPublicId\", d.donor);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/trail"
+          }
+        },
+        {
+          "name": "Donor receipt",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if(!pm.collectionVariables.get(\"donorPublicId\")){pm.test(\"skipped: no donation yet\",()=>true);return;}",
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));",
+                  "pm.test(\"lists donations\",()=>pm.expect(pm.response.json().donations).to.be.an(\"array\").that.is.not.empty);",
+                  "pm.test(\"no email\",()=>pm.expect(pm.response.text()).to.not.include(\"@\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/receipts/{{donorPublicId}}"
           }
         },
         {
@@ -313,7 +370,7 @@
                   "pm.test(\"201 or 202\",()=>pm.expect([201,202]).to.include(pm.response.code));",
                   "const j=pm.response.json();",
                   "if(pm.response.code===201){pm.test(\"voice note was transcribed\",()=>pm.expect(j.detail.message.voice).to.eql(true));",
-                  "pm.test(\"transcript is not in the response\",()=>pm.expect(pm.response.text()).to.not.include(\"Kathmandu\"));}",
+                  "pm.test(\"transcript is not in the response (only the AI summary)\",()=>{pm.expect(pm.response.text()).to.not.include(\"brought down the walls of my shop\");pm.expect(j).to.not.have.property(\"transcript\");});}",
                   "pm.collectionVariables.set(\"voiceClaimPublicId\", j.claimPublicId);"
                 ]
               }
@@ -430,7 +487,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"200\",()=>pm.response.to.have.status(200));"
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test(\"queue is a list without emails\",()=>{pm.expect(j.claims).to.be.an(\"array\");pm.expect(pm.response.text()).to.not.match(/[\\w.+-]+@[\\w-]+\\.[\\w.]+/);});",
+                  "if(j.claims[0]) pm.collectionVariables.set(\"reviewClaimId\", j.claims[0].id);"
                 ]
               }
             }
@@ -722,6 +782,10 @@
     },
     {
       "key": "payoutBatchId",
+      "value": ""
+    },
+    {
+      "key": "donorPublicId",
       "value": ""
     }
   ]

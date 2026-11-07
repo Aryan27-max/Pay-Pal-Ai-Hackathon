@@ -32,7 +32,8 @@
     "tunnel": "node scripts/tunnel.mjs",
     "stack:down": "docker compose down",
     "check:robustness": "tsx scripts/robustness-check.ts",
-    "test:e2e": "tsx scripts/e2e-review.ts"
+    "test:e2e": "tsx scripts/e2e-review.ts",
+    "test:api": "tsx scripts/newman-run.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.5.1",
