@@ -93,7 +93,7 @@ export default function ReviewPage() {
     }
     const body = (await res.json()) as { claims: ReviewClaim[] };
     setClaims(body.claims);
-    setMsg(null);
+    // Don't clear the message here: act() reloads the queue right after showing the decision outcome.
   }, []);
 
   useEffect(() => {

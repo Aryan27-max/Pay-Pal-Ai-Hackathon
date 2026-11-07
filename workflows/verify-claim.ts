@@ -100,7 +100,7 @@ export async function finalizeClaim(claimId: string, checks: CheckResults & { ti
   if (DECIDED.includes(claim.status)) return storedResult(claimId);
   const { location, photo, message, uniqueness: uq, vouching } = checks;
 
-  const dup = { sameEmail: uq.sameEmail, samePhoto: uq.samePhoto, nearDuplicatePhoto: photo.nearDuplicate, nearCosine: photo.nearest?.cosine };
+  const dup = { sameEmail: uq.sameEmail, samePhoto: uq.samePhoto, nearDuplicatePhoto: photo.nearDuplicate, nearCosine: photo.nearest?.cosine ?? null, nearDhash: photo.nearest?.dhash ?? null, nearRule: photo.rule };
   const uniqueness = uniquenessSignal(dup);
 
   // One AI call, skipped when a hard rule already decides (duplicate, or far from every event).
@@ -171,7 +171,7 @@ export async function finalizeClaim(claimId: string, checks: CheckResults & { ti
       feeds: location.feeds,
       kernel: { status: location.kernel.status, matched: location.kernel.matched, hazards: location.kernel.hazards.slice(0, 8), cached: location.kernel.cached ?? false, error: location.kernel.error },
     },
-    photo: { exif: exif.reason, exifFactor: exif.factor, clip: photo.clip, nearestClaim: photo.nearest?.claimPublicId ?? null, cosine: photo.nearest?.cosine ?? null, threshold: photo.threshold, nearDuplicate: photo.nearDuplicate, unavailable: photo.unavailable, error: photo.error },
+    photo: { exif: exif.reason, exifFactor: exif.factor, clip: photo.clip, nearestClaim: photo.nearest?.claimPublicId ?? null, cosine: photo.nearest?.cosine ?? null, dhashDistance: photo.nearest?.dhash ?? null, nearRule: photo.rule, threshold: photo.threshold, nearDuplicate: photo.nearDuplicate, unavailable: photo.unavailable, error: photo.error },
     message: { typed: message.hasText, voice: message.hasVoice, transcribed: message.transcribed, language: message.language, durationSec: message.durationSec, error: message.error },
     uniqueness: { duplicateEmail: uq.sameEmail, duplicatePhoto: uq.samePhoto, nearDuplicatePhoto: photo.nearDuplicate, reason: duplicateReason(dup) },
     vouching: { nearbyVerified: vouching.nearbyVerified, radiusKm: vouching.radiusKm, source: vouching.source, unavailable: vouching.unavailable, error: vouching.error },
@@ -180,9 +180,11 @@ export async function finalizeClaim(claimId: string, checks: CheckResults & { ti
   };
 
   const status = decision.outcome;
-  await db.$transaction([
-    db.claim.update({
-      where: { id: claimId },
+  // Exactly one decision per verification: the write only happens while the claim is still VERIFYING
+  // (a recovery re-run racing a slow original can't decide twice). Trail entries ride in the same transaction.
+  const won = await db.$transaction(async (tx) => {
+    const upd = await tx.claim.updateMany({
+      where: { id: claimId, status: "VERIFYING" },
       data: {
         status,
         score: decision.score,
@@ -196,9 +198,12 @@ export async function finalizeClaim(claimId: string, checks: CheckResults & { ti
         aiCached: aiSummary.cached,
         signals: { ...signals, detail } as never,
       },
-    }),
-    db.decision.create({ data: { claimId, actor: "engine", outcome: decision.outcome, score: decision.score, reason: decision.reason } }),
-  ]);
+    });
+    if (upd.count !== 1) return false;
+    await tx.decision.create({ data: { claimId, actor: "engine", outcome: decision.outcome, score: decision.score, reason: decision.reason } });
+    return true;
+  });
+  if (!won) return storedResult(claimId);
   // Evidence is held only until the decision: photo + voice bytes are deleted now (memory and Postgres).
   await dropEvidence(claimId);
 

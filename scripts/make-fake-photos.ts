@@ -3,7 +3,9 @@
  *
  * Builds the derived fixture photos in simulators/fixtures/photos:
  *  - fake-cropped-photo.jpg: genuine-1.jpg cropped (82% × 85%, offset) and re-compressed at quality 62,
- *    so its SHA-256 differs from genuine-1 and only CLIP + Elastic can catch the reuse.
+ *    so its SHA-256 differs from genuine-1 and only the near-duplicate check can catch the reuse.
+ *  - fake-heavy-edit.jpg: genuine-1.jpg cropped to 75% × 78%, resized to 640 px wide, brightened ×1.2 and
+ *    re-compressed at quality 70 (the "heavier edit" test: whole-photo CLIP alone gives 0.889).
  * With --from-downloads <dir> it also re-encodes the downloaded source images listed in CREDITS.md
  * (metadata stripped by the re-encode):
  *  - <dir>/ai-flood.png   → fake-ai-generated.jpg
@@ -27,6 +29,14 @@ async function main() {
     .toBuffer();
   fs.writeFileSync(path.join(PHOTOS, "fake-cropped-photo.jpg"), crop);
   console.log(`fake-cropped-photo.jpg  sha256 ${sha256Hex(crop).slice(0, 12)}… (genuine-1 ${sha256Hex(g1).slice(0, 12)}…)`);
+  const heavy = await sharp(g1)
+    .extract({ left: Math.floor(m.width * 0.12), top: Math.floor(m.height * 0.1), width: Math.floor(m.width * 0.75), height: Math.floor(m.height * 0.78) })
+    .resize(640)
+    .modulate({ brightness: 1.2 })
+    .jpeg({ quality: 70 })
+    .toBuffer();
+  fs.writeFileSync(path.join(PHOTOS, "fake-heavy-edit.jpg"), heavy);
+  console.log(`fake-heavy-edit.jpg     sha256 ${sha256Hex(heavy).slice(0, 12)}…`);
 
   const i = process.argv.indexOf("--from-downloads");
   if (i > 0) {

@@ -11,6 +11,7 @@ All photos are **public domain** works from Wikimedia Commons (US federal govern
 | borderline-no-damage.jpg | File:Houses in New Augusta, Indianapolis.jpg | Public domain (Wikimedia Commons) |
 | fake-duplicate-account.jpg | File:FEMA - 3629 - Photograph by Leif Skoogfors taken on 07-17-2001 in West Virginia.jpg | Leif Skoogfors / FEMA |
 | fake-cropped-photo.jpg | Derived from genuine-1.jpg by `scripts/make-fake-photos.ts` (crop 82% × 85%, JPEG quality 62) | (derivative of the FEMA photo above) |
+| fake-heavy-edit.jpg | Derived from genuine-1.jpg by `scripts/make-fake-photos.ts` (crop 75% × 78%, resize to 640 px, brightness ×1.2, JPEG quality 70) | (derivative of the FEMA photo above) |
 | fake-ai-generated.jpg | File:Largely abandoned cyberpunk city with not enough funds to protect against the rising sea (v2).png | AI-generated (weights.com), public domain: "the work of a computer algorithm or artificial intelligence" (PD-algorithm) |
 | fake-outside-zone.jpg | File:FEMA - 34577 - Flooded neighborhood in rural Missouri.jpg (Dutchtown, MO, 2008) | John Shea / FEMA |
 | fake-contradictory-voice.jpg | File:FEMA - 34505 - Home in Missouri continuing to be surrounded by flood waters.jpg (Pacific, MO, 2008) | Jocelyn Augustino / FEMA |

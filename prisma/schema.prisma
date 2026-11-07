@@ -37,6 +37,7 @@ model Claim {
   geoCell         String     @map("geo_cell") // ~10 km grid, public
   disasterEventId String?    @map("disaster_event_id")
   photoSha256     String     @map("photo_sha256")
+  photoDhash      String?    @map("photo_dhash") // 64-bit perceptual dHash (hex), set inside the photo lock
   messageText     String     @map("message_text") // PRIVATE
   status          String     @default("RECEIVED")
   score           Int?

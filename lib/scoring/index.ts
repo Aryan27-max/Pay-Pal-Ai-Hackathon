@@ -60,6 +60,25 @@ export const clamp01 = (x: number) => (Number.isFinite(x) ? Math.min(1, Math.max
 
 /** Raw CLIP cosine at or above which two photos are the same scene (tuned on fixtures, see clip:tune). */
 export const CLIP_DUPLICATE_THRESHOLD = 0.92;
+/** dHash Hamming distance at or below which two photos are the same picture (resize / re-compress / brightness). */
+export const DHASH_DUPLICATE_MAX = 12;
+/** Both together: a moderately similar CLIP embedding AND a close dHash (heavier crop + resize + brightness). */
+export const COMBINED_CLIP_MIN = 0.88;
+export const COMBINED_DHASH_MAX = 19;
+
+export type NearDupRule = "clip" | "dhash" | "clip+dhash";
+
+/**
+ * Near-duplicate photo rule (pure, tested). `clip` = best cosine of the new photo against any stored crop of
+ * the other photo (multi-crop CLIP); `dhash` = Hamming distance of the 64-bit dHashes. Tuned on the fixtures:
+ * no two different photos are within BOTH 0.88 and 19 (closest: 0.890/26 and 0.568/20). architecture.md §5.
+ */
+export function nearDuplicateRule(m: { clip: number | null; dhash: number | null }): NearDupRule | null {
+  if (m.clip !== null && m.clip >= CLIP_DUPLICATE_THRESHOLD) return "clip";
+  if (m.dhash !== null && m.dhash <= DHASH_DUPLICATE_MAX) return "dhash";
+  if (m.clip !== null && m.dhash !== null && m.clip >= COMBINED_CLIP_MIN && m.dhash <= COMBINED_DHASH_MAX) return "clip+dhash";
+  return null;
+}
 /** A claim farther than this from every active event area is rejected (appealable), with no AI call. */
 export const FAR_FROM_EVENT_KM = 100;
 /** No auto-payout when the photo or message signal is below this: a human looks first. */
@@ -116,10 +135,20 @@ export function uniquenessSignal(dup: { sameEmail: boolean; samePhoto: boolean; 
 }
 
 /** Which duplicate rule fired, for the reason text (first match wins). */
-export function duplicateReason(dup: { sameEmail: boolean; samePhoto: boolean; nearDuplicatePhoto?: boolean; nearCosine?: number }): string | null {
+export function duplicateReason(dup: { sameEmail: boolean; samePhoto: boolean; nearDuplicatePhoto?: boolean; nearCosine?: number | null; nearDhash?: number | null; nearRule?: NearDupRule | null }): string | null {
   if (dup.sameEmail) return "this PayPal account already has a claim";
   if (dup.samePhoto) return "this exact photo (same SHA-256) was already submitted";
-  if (dup.nearDuplicatePhoto) return `near-duplicate of an earlier claim's photo (CLIP cosine ${dup.nearCosine?.toFixed(3) ?? "?"} >= ${CLIP_DUPLICATE_THRESHOLD})`;
+  if (dup.nearDuplicatePhoto) {
+    const c = typeof dup.nearCosine === "number" ? `CLIP ${dup.nearCosine.toFixed(3)}` : "CLIP –";
+    const d = typeof dup.nearDhash === "number" ? `dHash ${dup.nearDhash}` : "dHash –";
+    const why =
+      dup.nearRule === "dhash"
+        ? `dHash ≤ ${DHASH_DUPLICATE_MAX}`
+        : dup.nearRule === "clip+dhash"
+          ? `CLIP ≥ ${COMBINED_CLIP_MIN} and dHash ≤ ${COMBINED_DHASH_MAX}`
+          : `CLIP >= ${CLIP_DUPLICATE_THRESHOLD}`;
+    return `near-duplicate of an earlier claim's photo (${c}, ${d}: ${why})`;
+  }
   return null;
 }
 

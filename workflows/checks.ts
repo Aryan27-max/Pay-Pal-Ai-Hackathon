@@ -7,10 +7,11 @@ import type { DisasterContext } from "@/lib/ai";
 import { elasticConfigured } from "@/lib/search/client";
 import { countVouchers, VOUCH_STATUSES } from "@/lib/search/claims";
 import { haversineKm } from "@/lib/privacy";
-import { indexPhoto, nearestPhoto } from "@/lib/search/photos";
+import { indexPhotoVariants, nearestPhotos, type PhotoMatch } from "@/lib/search/photos";
 import { transcribe } from "@/lib/speech";
-import { CLIP_DUPLICATE_THRESHOLD } from "@/lib/scoring";
-import { embedImage } from "@/lib/vision/clip";
+import { CLIP_DUPLICATE_THRESHOLD, nearDuplicateRule, type NearDupRule } from "@/lib/scoring";
+import { embedCrops } from "@/lib/vision/clip";
+import { dHash, hamming } from "@/lib/vision/phash";
 import { readExif } from "@/lib/vision/exif";
 
 /**
@@ -68,11 +69,19 @@ export async function checkLocationStep(claimId: string): Promise<LocationResult
   };
 }
 
-/* 2. Photo: EXIF + CLIP near-duplicate (Elastic kNN). The photo is indexed after the search. */
+/* 2. Photo: EXIF + near-duplicates (perceptual dHash in Postgres + multi-crop CLIP in Elasticsearch).
+ *    The comparison and the registration of this photo happen inside ONE Postgres advisory lock, so two
+ *    claims submitted at the same moment can't both miss each other: the second one through the lock
+ *    always sees the first. */
+export const PHOTO_LOCK_KEY = 7_340_021; // arbitrary constant, shared by all instances
+
 export type PhotoResult = {
   exif: { present: boolean; takenAt?: string; gps?: { lat: number; lon: number } };
-  nearest: { claimPublicId: string; cosine: number } | null;
+  dhash: string | null;
+  /** The strongest match among earlier photos (null = none close). */
+  nearest: { claimPublicId: string; cosine: number | null; dhash: number | null; variant?: string } | null;
   nearDuplicate: boolean;
+  rule: NearDupRule | null;
   threshold: number;
   /** CLIP + Elastic: on | disabled (no ELASTIC_URL: not an error) | error (configured but failing). */
   clip: "on" | "disabled" | "error";
@@ -84,19 +93,73 @@ export type PhotoResult = {
 export async function checkPhotoStep(claimId: string): Promise<PhotoResult> {
   const c = await loadClaim(claimId);
   const ev = await getEvidence(claimId, "photo");
-  if (!ev) return { exif: { present: false }, nearest: null, nearDuplicate: false, threshold: CLIP_DUPLICATE_THRESHOLD, clip: "error", unavailable: true, error: "evidence already deleted" };
+  const base = { threshold: CLIP_DUPLICATE_THRESHOLD };
+  if (!ev) return { ...base, exif: { present: false }, dhash: null, nearest: null, nearDuplicate: false, rule: null, clip: "error", unavailable: true, error: "evidence already deleted" };
   const bytes = ev.photo;
   const exif = await readExif(bytes);
   const exifJson = { present: exif.present, ...(exif.takenAt ? { takenAt: exif.takenAt.toISOString() } : {}), ...(exif.gps ? { gps: exif.gps } : {}) };
-  if (!elasticConfigured()) return { exif: exifJson, nearest: null, nearDuplicate: false, threshold: CLIP_DUPLICATE_THRESHOLD, clip: "disabled", unavailable: false, error: "disabled: no key (ELASTIC_URL)" };
-  try {
-    const vec = await embedImage(bytes);
-    const nearest = await nearestPhoto(vec, c.claimPublicId);
-    await indexPhoto(c.claimPublicId, vec);
-    return { exif: exifJson, nearest, nearDuplicate: Boolean(nearest && nearest.cosine >= CLIP_DUPLICATE_THRESHOLD), threshold: CLIP_DUPLICATE_THRESHOLD, clip: "on", unavailable: false };
-  } catch (e) {
-    return { exif: exifJson, nearest: null, nearDuplicate: false, threshold: CLIP_DUPLICATE_THRESHOLD, clip: "error", unavailable: true, error: errText(e) };
+  const myHash = await dHash(bytes);
+
+  // Embeddings are computed OUTSIDE the lock (the slow part); only compare + register happen inside it.
+  const useClip = elasticConfigured();
+  let crops: Array<{ variant: string; vec: number[] }> = [];
+  let clipState: PhotoResult["clip"] = useClip ? "on" : "disabled";
+  let error: string | undefined = useClip ? undefined : "disabled: no key (ELASTIC_URL): dHash only";
+  if (useClip) {
+    try {
+      crops = await embedCrops(bytes);
+    } catch (e) {
+      clipState = "error";
+      error = errText(e);
+    }
   }
+
+  const matches = await db.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${PHOTO_LOCK_KEY})`;
+      const others = await tx.claim.findMany({ where: { id: { not: claimId }, photoDhash: { not: null } }, select: { claimPublicId: true, photoDhash: true } });
+      const dist = new Map(others.map((o) => [o.claimPublicId, hamming(myHash, o.photoDhash!)]));
+      let clipMatches: PhotoMatch[] = [];
+      if (clipState === "on") {
+        try {
+          clipMatches = await nearestPhotos(crops.find((v) => v.variant === "full")!.vec, c.claimPublicId);
+          await indexPhotoVariants(c.claimPublicId, crops);
+        } catch (e) {
+          clipState = "error";
+          error = errText(e);
+        }
+      }
+      await tx.claim.update({ where: { id: claimId }, data: { photoDhash: myHash } });
+      return { dist, clipMatches };
+    },
+    { timeout: 60_000, maxWait: 60_000 },
+  );
+
+  // Candidates: the closest by CLIP and the closest by dHash; each scored on BOTH signals.
+  const clipBy = new Map(matches.clipMatches.map((m) => [m.claimPublicId, m]));
+  const ids = new Set<string>([...matches.clipMatches.slice(0, 5).map((m) => m.claimPublicId), ...[...matches.dist.entries()].sort((a, b) => a[1] - b[1]).slice(0, 5).map(([id]) => id)]);
+  let best: PhotoResult["nearest"] = null;
+  let bestRule: NearDupRule | null = null;
+  const rank = (n: NonNullable<PhotoResult["nearest"]>) => (n.cosine ?? 0) + (64 - (n.dhash ?? 64)) / 64;
+  for (const id of ids) {
+    const cand = { claimPublicId: id, cosine: clipBy.get(id)?.cosine ?? null, dhash: matches.dist.get(id) ?? null, variant: clipBy.get(id)?.variant };
+    const rule = nearDuplicateRule({ clip: cand.cosine, dhash: cand.dhash });
+    if ((rule && !bestRule) || ((Boolean(rule) === Boolean(bestRule)) && (!best || rank(cand) > rank(best)))) {
+      best = cand;
+      bestRule = rule;
+    }
+  }
+  return {
+    ...base,
+    exif: exifJson,
+    dhash: myHash,
+    nearest: best,
+    nearDuplicate: bestRule !== null,
+    rule: bestRule,
+    clip: clipState,
+    unavailable: clipState === "error",
+    error,
+  };
 }
 
 /* 3. Message: transcribe the voice note (if any). The transcript is stored on the claim (private) and

@@ -30,7 +30,9 @@
     "dev:local": "node scripts/dev-local.mjs",
     "demo": "tsx simulators/demo.ts",
     "tunnel": "node scripts/tunnel.mjs",
-    "stack:down": "docker compose down"
+    "stack:down": "docker compose down",
+    "check:robustness": "tsx scripts/robustness-check.ts",
+    "test:e2e": "tsx scripts/e2e-review.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.5.1",

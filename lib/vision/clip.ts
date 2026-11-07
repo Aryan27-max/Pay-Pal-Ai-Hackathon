@@ -41,6 +41,45 @@ export function cosine(a: number[], b: number[]): number {
   return s;
 }
 
+/**
+ * Crops stored for every indexed photo, so a cropped re-upload still finds its original: the query (full
+ * photo) is compared with all of them. Fractions of width/height: [name, left, top, size].
+ */
+export const CROP_VARIANTS: Array<[string, number, number, number]> = [
+  ["full", 0, 0, 1],
+  ["c80", 0.1, 0.1, 0.8],
+  ["c65", 0.175, 0.175, 0.65],
+  ["tl75", 0, 0, 0.75],
+  ["tr75", 0.25, 0, 0.75],
+  ["bl75", 0, 0.25, 0.75],
+  ["br75", 0.25, 0.25, 0.75],
+];
+
+/** Embeddings of the photo and its crops (7 × ~0.1 s on a laptop CPU). */
+export async function embedCrops(bytes: Uint8Array): Promise<Array<{ variant: string; vec: number[] }>> {
+  const sharp = (await import("sharp")).default;
+  const meta = await sharp(Buffer.from(bytes)).rotate().metadata();
+  const W = meta.autoOrient?.width ?? meta.width ?? 0;
+  const H = meta.autoOrient?.height ?? meta.height ?? 0;
+  const out: Array<{ variant: string; vec: number[] }> = [];
+  for (const [variant, x, y, s] of CROP_VARIANTS) {
+    if (s === 1 || !W || !H) {
+      out.push({ variant, vec: await embedImage(bytes) });
+      if (!W || !H) break;
+      continue;
+    }
+    const left = Math.floor(W * x);
+    const top = Math.floor(H * y);
+    const crop = await sharp(Buffer.from(bytes))
+      .rotate()
+      .extract({ left, top, width: Math.min(W - left, Math.floor(W * s)), height: Math.min(H - top, Math.floor(H * s)) })
+      .jpeg({ quality: 90 })
+      .toBuffer();
+    out.push({ variant, vec: await embedImage(new Uint8Array(crop)) });
+  }
+  return out;
+}
+
 export async function embedImage(bytes: Uint8Array): Promise<number[]> {
   loading ??= load().catch((e) => {
     loading = undefined; // allow a retry after a failed download

@@ -4,7 +4,9 @@
     {
       "key": "genuine-1",
       "kind": "genuine",
-      "expect": ["APPROVED"],
+      "expect": [
+        "APPROVED"
+      ],
       "emailIndex": 0,
       "lat": 38.7905,
       "lon": -90.43,
@@ -16,7 +18,9 @@
     {
       "key": "genuine-2",
       "kind": "genuine",
-      "expect": ["APPROVED"],
+      "expect": [
+        "APPROVED"
+      ],
       "emailIndex": 1,
       "lat": 38.815,
       "lon": -90.405,
@@ -26,7 +30,9 @@
     {
       "key": "genuine-3",
       "kind": "genuine",
-      "expect": ["APPROVED"],
+      "expect": [
+        "APPROVED"
+      ],
       "emailIndex": 2,
       "lat": 38.77,
       "lon": -90.415,
@@ -38,7 +44,9 @@
     {
       "key": "borderline-outside-zone",
       "kind": "borderline",
-      "expect": ["IN_REVIEW"],
+      "expect": [
+        "IN_REVIEW"
+      ],
       "emailIndex": 3,
       "lat": 39.09,
       "lon": -90.95,
@@ -48,7 +56,9 @@
     {
       "key": "borderline-no-damage",
       "kind": "borderline",
-      "expect": ["IN_REVIEW"],
+      "expect": [
+        "IN_REVIEW"
+      ],
       "emailIndex": 4,
       "lat": 38.76,
       "lon": -90.69,
@@ -58,7 +68,9 @@
     {
       "key": "fake-reused-photo",
       "kind": "fake",
-      "expect": ["REJECTED"],
+      "expect": [
+        "REJECTED"
+      ],
       "caughtBy": "uniqueness:photo_hash",
       "emailIndex": 5,
       "lat": 38.795,
@@ -69,7 +81,9 @@
     {
       "key": "fake-duplicate-account",
       "kind": "fake",
-      "expect": ["REJECTED"],
+      "expect": [
+        "REJECTED"
+      ],
       "caughtBy": "uniqueness:paypal_account",
       "emailIndex": 0,
       "lat": 38.8,
@@ -80,8 +94,10 @@
     {
       "key": "fake-cropped-photo",
       "kind": "fake",
-      "expect": ["REJECTED"],
-      "caughtBy": "uniqueness:clip_near_duplicate",
+      "expect": [
+        "REJECTED"
+      ],
+      "caughtBy": "uniqueness:near_duplicate_photo",
       "email": "sim.fake.cropped@example.com",
       "lat": 38.785,
       "lon": -90.45,
@@ -89,9 +105,25 @@
       "message": "Our street in St. Charles went under water on Tuesday night when the Missouri rose. The ground floor of our house is ruined and we need money for food and cleaning."
     },
     {
+      "key": "fake-heavy-edit",
+      "kind": "fake",
+      "expect": [
+        "REJECTED"
+      ],
+      "caughtBy": "uniqueness:near_duplicate_photo",
+      "email": "sim.fake.heavyedit@example.com",
+      "lat": 38.78,
+      "lon": -90.42,
+      "photo": "fake-heavy-edit.jpg",
+      "message": "Water came into our house in St. Charles when the Missouri flooded on Tuesday night. The ground floor is ruined and we need help with food and cleaning supplies."
+    },
+    {
       "key": "fake-ai-generated",
       "kind": "fake",
-      "expect": ["IN_REVIEW", "REJECTED"],
+      "expect": [
+        "IN_REVIEW",
+        "REJECTED"
+      ],
       "caughtBy": "photo:ai_generated",
       "email": "sim.fake.aiphoto@example.com",
       "lat": 38.805,
@@ -102,7 +134,9 @@
     {
       "key": "fake-outside-zone",
       "kind": "fake",
-      "expect": ["REJECTED"],
+      "expect": [
+        "REJECTED"
+      ],
       "caughtBy": "location:far_from_event",
       "email": "sim.fake.outside@example.com",
       "lat": 39.7392,
@@ -113,7 +147,10 @@
     {
       "key": "fake-contradictory-voice",
       "kind": "fake",
-      "expect": ["IN_REVIEW", "REJECTED"],
+      "expect": [
+        "IN_REVIEW",
+        "REJECTED"
+      ],
       "caughtBy": "message:contradicts_event",
       "email": "sim.fake.voice@example.com",
       "lat": 38.775,

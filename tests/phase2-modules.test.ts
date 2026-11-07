@@ -159,3 +159,22 @@ describe("CLIP helpers", () => {
     expect(cosine(normalise([1, 0]), normalise([0, 1]))).toBeCloseTo(0);
   });
 });
+
+describe("perceptual hash (dHash)", () => {
+  it("hamming distance on 64-bit hex hashes", async () => {
+    const { hamming } = await import("@/lib/vision/phash");
+    expect(hamming("0000000000000000", "0000000000000000")).toBe(0);
+    expect(hamming("0000000000000000", "ffffffffffffffff")).toBe(64);
+    expect(hamming("f0f0f0f0f0f0f0f0", "f0f0f0f0f0f0f0f1")).toBe(1);
+  });
+  it("same photo resized + re-compressed stays close; different photos are far", async () => {
+    const fs = await import("node:fs");
+    const sharp = (await import("sharp")).default;
+    const { dHash, hamming } = await import("@/lib/vision/phash");
+    const g1 = fs.readFileSync("simulators/fixtures/photos/genuine-1.jpg");
+    const small = await sharp(g1).resize(400).jpeg({ quality: 50 }).toBuffer();
+    const other = fs.readFileSync("simulators/fixtures/photos/genuine-2.jpg");
+    expect(hamming(await dHash(g1), await dHash(small))).toBeLessThanOrEqual(12);
+    expect(hamming(await dHash(g1), await dHash(other))).toBeGreaterThan(19);
+  });
+});

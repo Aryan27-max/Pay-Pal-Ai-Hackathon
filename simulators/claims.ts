@@ -11,7 +11,7 @@ import { baseUrl, claimantEmails, FIXTURES, loadClaimFixtures, operatorToken, pa
 
 type Detail = {
   location?: { eventName?: string; eventSource?: string; far?: boolean; distanceOutsideKm?: number | null; confirmedBy?: string; kernel?: { status?: string; cached?: boolean; matched?: string[]; hazards?: string[] } };
-  photo?: { exif?: string; cosine?: number | null; nearestClaim?: string | null; nearDuplicate?: boolean; unavailable?: boolean };
+  photo?: { exif?: string; cosine?: number | null; dhashDistance?: number | null; nearRule?: string | null; nearestClaim?: string | null; nearDuplicate?: boolean; unavailable?: boolean };
   message?: { voice?: boolean; transcribed?: boolean; language?: string | null; error?: string };
   uniqueness?: { duplicateEmail?: boolean; duplicatePhoto?: boolean; nearDuplicatePhoto?: boolean };
   vouching?: { nearbyVerified?: number };
@@ -56,7 +56,7 @@ export function caughtBy(r: Pick<Report, "outcome" | "signals" | "detail" | "ai"
   const d = r.detail ?? {};
   if (d.uniqueness?.duplicateEmail) return "uniqueness:paypal_account";
   if (d.uniqueness?.duplicatePhoto) return "uniqueness:photo_hash";
-  if (d.uniqueness?.nearDuplicatePhoto) return "uniqueness:clip_near_duplicate";
+  if (d.uniqueness?.nearDuplicatePhoto) return "uniqueness:near_duplicate_photo";
   if (d.location?.far) return "location:far_from_event";
   if (r.outcome === "APPROVED") return null;
   if ((r.ai?.scores?.photo_ai_generated_risk ?? 0) >= 0.8) return "photo:ai_generated";
@@ -157,7 +157,7 @@ export async function runClaims(opts: { placeholder: boolean }): Promise<ClaimRu
     );
     const d = run.detail;
     console.log(
-      `       evidence: event ${d?.location?.eventSource ?? "-"}${d?.location?.far ? " FAR" : ""}, kernel ${d?.location?.kernel?.status ?? "-"}${d?.location?.kernel?.cached ? " (cached)" : ""}, exif ${d?.photo?.exif ?? "-"}, clip ${typeof d?.photo?.cosine === "number" ? d.photo.cosine.toFixed(3) : "-"}, voice ${voice}${d?.message?.language ? ` (${d.message.language})` : ""}, vouchers ${d?.vouching?.nearbyVerified ?? 0}`,
+      `       evidence: event ${d?.location?.eventSource ?? "-"}${d?.location?.far ? " FAR" : ""}, kernel ${d?.location?.kernel?.status ?? "-"}${d?.location?.kernel?.cached ? " (cached)" : ""}, exif ${d?.photo?.exif ?? "-"}, clip ${typeof d?.photo?.cosine === "number" ? d.photo.cosine.toFixed(3) : "-"} dhash ${d?.photo?.dhashDistance ?? "-"}${d?.photo?.nearRule ? ` [${d.photo.nearRule}]` : ""}, voice ${voice}${d?.message?.language ? ` (${d.message.language})` : ""}, vouchers ${d?.vouching?.nearbyVerified ?? 0}`,
     );
     if (f.kind === "fake" || !run.ok) console.log(`       caught by: ${cb ?? "-"}${expectCaughtBy ? ` (expected ${expectCaughtBy})` : ""} | ${run.reason.slice(0, 200)}`);
   }

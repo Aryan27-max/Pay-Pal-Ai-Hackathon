@@ -3,7 +3,11 @@ import { haversineKm } from "@/lib/privacy";
 import {
   areaLocationSignal,
   CLIP_DUPLICATE_THRESHOLD,
+  COMBINED_CLIP_MIN,
+  COMBINED_DHASH_MAX,
   CORE_EVIDENCE_FLOOR,
+  DHASH_DUPLICATE_MAX,
+  nearDuplicateRule,
   decide,
   duplicateReason,
   exifFactor,
@@ -55,10 +59,34 @@ describe("uniqueness: account, hash and CLIP near-duplicate", () => {
   it("names the rule that fired, account first, then hash, then CLIP", () => {
     expect(duplicateReason({ sameEmail: true, samePhoto: true, nearDuplicatePhoto: true })).toMatch(/PayPal account/);
     expect(duplicateReason({ sameEmail: false, samePhoto: true, nearDuplicatePhoto: true })).toMatch(/SHA-256/);
-    expect(duplicateReason({ sameEmail: false, samePhoto: false, nearDuplicatePhoto: true, nearCosine: 0.9393 })).toMatch(/CLIP cosine 0\.939 >= 0\.92/);
+    expect(duplicateReason({ sameEmail: false, samePhoto: false, nearDuplicatePhoto: true, nearCosine: 0.9393, nearDhash: 15, nearRule: "clip" })).toMatch(/CLIP 0\.939, dHash 15: CLIP >= 0\.92/);
+    expect(duplicateReason({ sameEmail: false, samePhoto: false, nearDuplicatePhoto: true, nearCosine: 0.89, nearDhash: 18, nearRule: "clip+dhash" })).toMatch(/CLIP ≥ 0\.88 and dHash ≤ 19/);
     expect(duplicateReason({ sameEmail: false, samePhoto: false })).toBeNull();
   });
   it("threshold is the tuned value recorded in architecture.md", () => expect(CLIP_DUPLICATE_THRESHOLD).toBe(0.92));
+});
+
+describe("near-duplicate rule: multi-crop CLIP + dHash (values measured on the fixtures)", () => {
+  it("catches every measured edit of genuine-1", () => {
+    expect(nearDuplicateRule({ clip: 0.9356, dhash: 1 })).toBe("clip"); // resize 50% + q50
+    expect(nearDuplicateRule({ clip: 0.9393, dhash: 15 })).toBe("clip"); // crop fixture
+    expect(nearDuplicateRule({ clip: 0.953, dhash: 18 })).toBe("clip"); // HEAVY: crop 75% + resize 640 + brightness (multi-crop CLIP)
+    expect(nearDuplicateRule({ clip: 0.9613, dhash: 28 })).toBe("clip"); // mirror
+    expect(nearDuplicateRule({ clip: null, dhash: 7 })).toBe("dhash"); // brightness, Elasticsearch off
+    expect(nearDuplicateRule({ clip: 0.8936, dhash: 19 })).toBe("clip+dhash"); // heavy edit of genuine-3
+  });
+  it("never flags two DIFFERENT fixture photos (closest pairs measured)", () => {
+    expect(nearDuplicateRule({ clip: 0.9125, dhash: 26 })).toBeNull(); // genuine-1 vs crops of another flooded street
+    expect(nearDuplicateRule({ clip: 0.8986, dhash: 36 })).toBeNull();
+    expect(nearDuplicateRule({ clip: 0.5683, dhash: 20 })).toBeNull(); // smallest dHash between different photos
+    expect(nearDuplicateRule({ clip: 0.7378, dhash: 21 })).toBeNull();
+  });
+  it("known limit: a heavy edit that matches neither signal is not caught", () => {
+    expect(nearDuplicateRule({ clip: 0.8927, dhash: 26 })).toBeNull(); // heavy edit of genuine-2 (documented)
+  });
+  it("thresholds", () => {
+    expect([CLIP_DUPLICATE_THRESHOLD, DHASH_DUPLICATE_MAX, COMBINED_CLIP_MIN, COMBINED_DHASH_MAX]).toEqual([0.92, 12, 0.88, 19]);
+  });
 });
 
 describe("decide: Phase 2 hard rules", () => {

@@ -26,6 +26,7 @@ export const indices = () => ({ photos: env().ELASTIC_PHOTOS_INDEX, claims: env(
 export const PHOTOS_MAPPING = {
   properties: {
     claim_public_id: { type: "keyword" },
+    variant: { type: "keyword" }, // full | c80 | c65 | tl75 | tr75 | bl75 | br75 (lib/vision/clip CROP_VARIANTS)
     embedding: { type: "dense_vector", dims: CLIP_DIMS, index: true, similarity: "cosine" },
     created_at: { type: "date" },
   },

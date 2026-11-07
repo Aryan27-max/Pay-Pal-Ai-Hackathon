@@ -68,8 +68,9 @@ export async function POST(req: Request) {
     // Repeat claims from one account get a sequence suffix so they can be stored (and rejected).
     let seq = await db.claim.count({ where: { paypalEmail: fields.paypal_email } });
     const audioMime = audioBytes && audio instanceof File ? audio.type : null;
-    // Render Workflows: evidence goes to Postgres for the task instances. Inline: memory only (lib/claims/evidence).
-    const toDb = workflowsEnabled();
+    // Evidence always goes to Postgres (until the decision) so a restart or a Workflows task can recover it;
+    // inline mode also keeps it in memory as a fast path (lib/claims/evidence).
+    const toDb = true;
     let claim;
     for (let i = 0; ; i++) {
       try {
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
       }
     }
 
-    if (!toDb) keepLocal(claim.id, { photo: photoBytes, photoMime: photo.type, audio: audioBytes, audioMime });
+    if (!workflowsEnabled()) keepLocal(claim.id, { photo: photoBytes, photoMime: photo.type, audio: audioBytes, audioMime });
     const d = await dispatchVerify(claim.id);
     if (d.mode === "workflow") {
       return json({ claimPublicId: claim.claimPublicId, status: "RECEIVED", mode: "workflow", taskRunId: d.taskRunId, poll: `/api/claims/${claim.claimPublicId}?detail=1` }, 202);
