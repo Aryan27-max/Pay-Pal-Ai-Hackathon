@@ -45,6 +45,8 @@
     "@renderinc/sdk": "^1.8.0",
     "@solana/spl-token": "^0.4.15",
     "@solana/web3.js": "^1.99.0",
+    "ag-grid-community": "^36.3.0",
+    "ag-grid-react": "^36.3.0",
     "bs58": "^6.0.0",
     "dotenv": "^18.0.9",
     "exifr": "^7.1.3",

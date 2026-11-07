@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { sendOpsAlert } from "@/lib/alerts";
+import { enqueueDonation, enqueuePayout } from "@/lib/trail";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { donorPublicId } from "@/lib/privacy";
 import { planFifoAllocation, toCents } from "@/lib/scoring";
@@ -71,6 +72,8 @@ export async function recordDonation(cap: CapturedDonation, source: "paypal_butt
       source,
     },
   });
+  // Public trail entry (idempotent; sent in the background, never blocks the donation).
+  await enqueueDonation(db, donation).catch((e) => console.error(`[trail] donation enqueue: ${e instanceof Error ? e.message.slice(0, 120) : "error"}`));
   return { recorded: true as const, donation };
 }
 
@@ -114,7 +117,8 @@ async function settlePayoutTx(payoutId: string, result: { itemStatus: string | n
           await tx.allocation.create({ data: { donationId: p.donationId, payoutId: payout.id, amountUsd: usd(p.amountCents) } });
           await tx.donation.update({ where: { id: p.donationId }, data: { remainingUsd: { decrement: usd(p.amountCents) } } });
         }
-        await tx.claim.update({ where: { id: payout.claimId }, data: { status: "PAID" } });
+        const paid = await tx.claim.update({ where: { id: payout.claimId }, data: { status: "PAID" }, select: { claimPublicId: true } });
+        await enqueuePayout(tx, { id: payout.id, claimPublicId: paid.claimPublicId, amountUsd: payout.amountUsd, senderBatchId: payout.senderBatchId, payoutBatchId: payout.payoutBatchId, createdAt: payout.createdAt });
       } else if (FAILED_PAYOUT_STATUSES.includes(status)) {
         await tx.claim.update({ where: { id: payout.claimId }, data: { status: "PAYOUT_FAILED" } });
       }

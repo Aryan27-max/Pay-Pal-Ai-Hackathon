@@ -178,3 +178,31 @@ model AiUsage {
   @@id([day, provider])
   @@map("ai_usage")
 }
+
+// Public Solana devnet trail: one entry per donation, decision (engine + reviewer) and successful payout.
+// Queued in the same flow, sent in the background with retries, so a chain problem never blocks or
+// duplicates a PayPal action. memo = RS|v1|<type>|<public_id>|<amount_usd>|<sha256 of the public row JSON>.
+model TrailEntry {
+  id            String    @id @default(uuid()) @db.Uuid
+  kind          String // donation | decision | payout
+  refId         String    @map("ref_id") @db.Uuid // id of the donation / decision / payout row
+  publicId      String    @map("public_id") // donor public id or claim public id (never PII)
+  type          String // donation | decision.approved | decision.in_review | decision.rejected | payout
+  amountUsd     String    @map("amount_usd")
+  rowJson       Json      @map("row_json") // the public fields that were hashed (anyone can re-hash them)
+  rowSha256     String    @map("row_sha256")
+  memo          String
+  status        String    @default("PENDING") // PENDING | SENDING | SENT | CONFIRMED | FAILED | DISABLED
+  attempts      Int       @default(0)
+  signature     String?
+  mode          String? // pyusd+memo | memo-only
+  error         String?
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at")
+  confirmedAt   DateTime? @map("confirmed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@unique([kind, refId])
+  @@index([status, nextAttemptAt])
+  @@map("trail_entry")
+}

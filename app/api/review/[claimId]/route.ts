@@ -6,6 +6,7 @@ import { elasticConfigured } from "@/lib/search/client";
 import { updateClaimStatus } from "@/lib/search/claims";
 import { errorResponse, json, reviewerToken, unauthorized } from "@/lib/http";
 import { dispatchPayout } from "@/workflows/dispatch";
+import { enqueueDecision } from "@/lib/trail";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -31,7 +32,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ claimId: strin
       if (!claim) return null;
       if (claim.status !== "IN_REVIEW") return { conflict: claim.status };
       const outcome = body.action === "approve" ? "APPROVED" : "REJECTED";
-      await tx.decision.create({ data: { claimId, actor, outcome, score: claim.score, reason: `reviewer ${body.action}: ${body.reason}` } });
+      const d = await tx.decision.create({ data: { claimId, actor, outcome, score: claim.score, reason: `reviewer ${body.action}: ${body.reason}` } });
+      await enqueueDecision(tx, { ...d, claimPublicId: claim.claimPublicId }); // reviewer decisions go on the public trail
       await tx.claim.update({ where: { id: claimId }, data: { status: outcome } });
       return { outcome, claimPublicId: claim.claimPublicId };
     });

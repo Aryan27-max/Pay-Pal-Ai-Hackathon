@@ -20,6 +20,7 @@ export async function resetDemoData(): Promise<void> {
     db.donation.deleteMany(),
     db.webhookEvent.deleteMany(),
     db.alertSent.deleteMany(), // so review / ops alerts fire again in the next run
+    db.trailEntry.deleteMany(), // the on-chain memos stay on devnet; only our queue rows go
   ]);
   // claim_evidence rows go with their claims (ON DELETE CASCADE). feed_cache and ai_cache are kept.
   if (elasticConfigured()) await clearIndices();

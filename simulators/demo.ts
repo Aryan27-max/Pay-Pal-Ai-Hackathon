@@ -21,6 +21,7 @@ function arg(name: string, def: number): number {
 
 const IN_FLIGHT = ["CREATED", "PENDING", "PROCESSING", "UNKNOWN"];
 const aiCallsByRun: Array<{ run: number; gemini: number; groq: number; cached: number; whisper: number; kernel: number }> = [];
+const trailByRun: Array<Record<string, number>> = [];
 
 /** Re-poll PayPal until no payout is in flight and no claim is still waiting to be paid (or the timeout passes). */
 async function settleAll(timeoutMs = 180_000): Promise<void> {
@@ -109,6 +110,25 @@ async function oneRun(n: number, placeholder: boolean): Promise<boolean> {
       console.log(`  ${pad(nameOf.get(a.donation.donorPublicId) ?? a.donation.donorPublicId, 6)} capture ${pad(a.donation.paypalCaptureId, 18)} $${pad(Number(a.amountUsd).toFixed(2), 6)} → ${p.claim.claimPublicId} (payout_batch_id ${p.payoutBatchId})`);
     }
   }
+  // Public trail: give the background worker up to 90 s to write this run's records (skipped when disabled).
+  const trailOn = ["SOLANA_RPC_URL", "SOLANA_TRAIL_WALLET_SECRET_KEY", "PYUSD_DEVNET_MINT", "SOLANA_EXPLORER_BASE"].every((k) => Boolean(process.env[k]?.trim()));
+  if (trailOn) {
+    const until = Date.now() + 90_000;
+    while (Date.now() < until && (await db.trailEntry.count({ where: { status: { in: ["PENDING", "SENDING", "SENT"] } } })) > 0) await new Promise((r) => setTimeout(r, 5_000));
+  }
+  const entries = await db.trailEntry.findMany({ orderBy: { createdAt: "asc" } });
+  const byStatus = entries.reduce<Record<string, number>>((m, e) => ((m[e.status] = (m[e.status] ?? 0) + 1), m), {});
+  trailByRun.push({ run: n, ...byStatus });
+  console.log(`\nSolana devnet trail: ${entries.length} records (${Object.entries(byStatus).map(([k, v]) => `${k} ${v}`).join(", ") || "none"})${trailOn ? "" : " — trail disabled (no Solana keys)"}`);
+  for (const e of entries.filter((x) => x.status === "CONFIRMED").slice(0, 40)) {
+    console.log(`  ${pad(e.type, 20)} ${pad(e.publicId, 23)} $${pad(e.amountUsd, 7)} ${(process.env.SOLANA_EXPLORER_BASE || "https://explorer.solana.com").replace(/\/+$/, "")}/tx/${e.signature}?cluster=devnet`);
+  }
+  const stuck = entries.filter((x) => x.status !== "CONFIRMED");
+  if (stuck.length && trailOn) console.log(`  not on chain yet: ${stuck.length} (first error: ${stuck.find((x) => x.error)?.error?.slice(0, 160) ?? "still queued"})`);
+
+  console.log("\nDonor receipts");
+  for (const d of donors.filter((x) => x.donorPublicId)) console.log(`  ${pad(d.name, 6)} ${baseUrl()}/receipt/${d.donorPublicId}`);
+
   console.log("\nPer-claim summary (signals 0–1; total = weighted score)");
   console.log(`  ${pad("claim", 25)} ${pad("photo", 5)} ${pad("loc", 5)} ${pad("msg", 5)} ${pad("uniq", 5)} ${pad("vouch", 5)} ${pad("total", 5)} ${pad("decision", 10)} ${pad("caught by", 32)} payout_batch_id`);
   const f2 = (v: number | null | undefined) => (typeof v === "number" ? v.toFixed(2) : "–");
@@ -130,6 +150,11 @@ async function main() {
   for (let i = 1; i <= runs; i++) if (await oneRun(i, placeholder)) passed++;
   console.log("\nAI calls per run");
   for (const r of aiCallsByRun) console.log(`  run ${r.run}: gemini=${r.gemini} groq=${r.groq} demo-cache hits=${r.cached} whisper=${r.whisper} kernel sessions=${r.kernel}`);
+  console.log("Solana trail per run");
+  for (const t of trailByRun) console.log(`  ${JSON.stringify(t)}`);
+  const usage = await db.aiUsage.findMany({ where: { day: new Date().toISOString().slice(0, 10) } });
+  const budget = (p: string) => Number(process.env[p === "gemini" ? "AI_DAILY_CALL_BUDGET_GEMINI" : "AI_DAILY_CALL_BUDGET_GROQ"]) || (p === "gemini" ? 400 : 800);
+  console.log(`AI calls today vs budget: ${["gemini", "groq"].map((p) => `${p} ${usage.find((u) => u.provider === p)?.calls ?? 0}/${budget(p)}`).join(", ")}`);
   console.log(`\nDemo: ${passed}/${runs} runs passed.`);
   await db.$disconnect();
   process.exit(passed === runs ? 0 : 1);

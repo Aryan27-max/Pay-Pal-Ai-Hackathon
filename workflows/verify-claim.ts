@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { dropEvidence, getEvidence } from "@/lib/claims/evidence";
+import { enqueueDecision } from "@/lib/trail";
 import { env } from "@/lib/env";
 import { assessClaim } from "@/lib/ai";
 import { demoCacheEnabled, isFixtureClaim, messageSha256 } from "@/lib/ai/demo-cache";
@@ -200,7 +201,8 @@ export async function finalizeClaim(claimId: string, checks: CheckResults & { ti
       },
     });
     if (upd.count !== 1) return false;
-    await tx.decision.create({ data: { claimId, actor: "engine", outcome: decision.outcome, score: decision.score, reason: decision.reason } });
+    const d = await tx.decision.create({ data: { claimId, actor: "engine", outcome: decision.outcome, score: decision.score, reason: decision.reason } });
+    await enqueueDecision(tx, { ...d, claimPublicId: claim.claimPublicId });
     return true;
   });
   if (!won) return storedResult(claimId);

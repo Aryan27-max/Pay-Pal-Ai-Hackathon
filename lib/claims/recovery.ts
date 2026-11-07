@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { sendOpsAlert } from "@/lib/alerts";
+import { enqueueDecision } from "@/lib/trail";
 import { Prisma } from "@/lib/generated/prisma/client";
 
 /**
@@ -43,7 +44,8 @@ export async function recoverStuckClaims(deps: Deps): Promise<RecoveryReport> {
       const moved = await db.$transaction(async (tx) => {
         const u = await tx.claim.updateMany({ where: { id: c.id, status: { in: ["RECEIVED", "VERIFYING"] } }, data: { status: "IN_REVIEW", aiExplanation: "Verification was interrupted and the evidence is no longer available. Needs a human." } });
         if (u.count !== 1) return false;
-        await tx.decision.create({ data: { claimId: c.id, actor: "engine", outcome: "IN_REVIEW", reason: "recovery: verification interrupted and evidence missing; needs a human (never auto-rejected for our failure)" } });
+        const d = await tx.decision.create({ data: { claimId: c.id, actor: "engine", outcome: "IN_REVIEW", reason: "recovery: verification interrupted and evidence missing; needs a human (never auto-rejected for our failure)" } });
+        await enqueueDecision(tx, { ...d, claimPublicId: c.claimPublicId });
         return true;
       });
       if (moved) report.toReview.push(c.claimPublicId);

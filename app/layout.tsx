@@ -19,6 +19,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/stream" className="text-slate-600 hover:text-slate-900">
               Stream
             </Link>
+            <Link href="/dashboard" className="text-slate-600 hover:text-slate-900">
+              Where the money went
+            </Link>
             <Link href="/admin" className="text-slate-600 hover:text-slate-900">
               Status
             </Link>
