@@ -40,11 +40,11 @@ This file lists the skills the project needs. **Your job is to create each one**
 | [x] | `kernel-browser` | Pages with no API | `@onkernel/sdk` + Playwright session, extract alert status, live view link for the demo, timeouts |
 | [x] | `render-workflows` | Background steps | `verify_claim`, `send_payout`, `write_trail` tasks; retries; triggering from API routes; local dev; `render.yaml` blueprint for web + Postgres + workflows |
 | [ ] | `astropods-agent` | Deploying / monitoring agents | `astropods.yml`, Dockerfile, `ast dev`, deploy, where to view traces for the video |
-| [ ] | `solana-trail` | Public record | Devnet connection, trail wallet from env, test PYUSD transfer + Memo format `RS\|v1\|<type>\|<id>\|<amount>\|<hash>`, explorer links, faucet steps, never PII |
+| [x] | `solana-trail` | Public record | Devnet connection, trail wallet from env, test PYUSD transfer + Memo format `RS\|v1\|<type>\|<id>\|<amount>\|<hash>`, explorer links, faucet steps, never PII |
 | [x] | `privacy-guard` | Anything public | HMAC public IDs, ~10 km geo rounding, redaction before dashboard/chain, review checklist |
 | [x] | `zapier-alerts` | Reviewer + ops alerts | Catch Hook payload shape, what each Zap does (Slack/email), test command |
-| [ ] | `ag-grid-dashboard` | Public dashboard + reviewer queue | Columns, live refresh, explorer links, status colors, donor receipt view |
-| [ ] | `postman-collection` | API testing | Collection structure (PayPal, internal, simulators), environments (local, render), tests per request, export path `postman/` |
+| [x] | `ag-grid-dashboard` | Public dashboard + reviewer queue | Columns, live refresh, explorer links, status colors, donor receipt view |
+| [x] | `postman-collection` | API testing | Collection structure (PayPal, internal, simulators), environments (local, render), tests per request, export path `postman/` |
 | [x] | `demo-simulators` | Building the demo | Stream page with fake chat + sandbox donors; claim fixtures: 3 genuine, 2 borderline, 2 fakes (reused photo, duplicate PayPal account); one-click "run demo" |
 | [ ] | `hackathon-submission` | Final day | README template (problem, how to run, AI tools used, sponsor tools used, sandbox logins), LICENSE, Devpost text, video checklist from `harness.md` §9 |
 
