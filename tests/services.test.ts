@@ -15,6 +15,6 @@ describe("optional services (graceful degradation)", () => {
     expect(serviceStatuses({ ZAPIER_REVIEW_WEBHOOK_URL: "u" }).find((s) => s.id === "zapier")!.missing).toEqual(["ZAPIER_ALERT_WEBHOOK_URL"]);
   });
   it("covers every optional sponsor service", () => {
-    expect(SERVICES.map((s) => s.id).sort()).toEqual(["astropods", "elastic", "groq", "kernel", "paypal_webhook", "solana", "zapier"]);
+    expect(SERVICES.map((s) => s.id).sort()).toEqual(["elastic", "groq", "kernel", "paypal_webhook", "solana", "zapier"]);
   });
 });

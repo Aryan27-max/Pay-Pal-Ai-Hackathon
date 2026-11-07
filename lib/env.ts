@@ -48,6 +48,7 @@ const EnvSchema = z
     WHISPER_LOCAL_MODEL: z.string().optional().default("base"),
     CLIP_MODE: z.literal("local").optional().default("local"),
     CLIP_MODEL_ID: z.string().optional().default("Xenova/clip-vit-base-patch32"),
+    CLIP_DTYPE: z.enum(["q8", "q4", ""]).optional().default(""),
     ELASTIC_URL: z.string().optional().default(""),
     ELASTIC_API_KEY: z.string().optional().default(""),
     ELASTIC_CLAIMS_INDEX: z.string().optional().default("relief-claims"),

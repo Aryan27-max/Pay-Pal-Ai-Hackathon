@@ -6,7 +6,7 @@
  */
 export type EnvLike = Record<string, string | undefined>;
 
-export type ServiceId = "groq" | "elastic" | "kernel" | "zapier" | "solana" | "astropods" | "paypal_webhook";
+export type ServiceId = "groq" | "elastic" | "kernel" | "zapier" | "solana" | "paypal_webhook";
 
 export type ServiceDef = {
   id: ServiceId;
@@ -60,13 +60,6 @@ export const SERVICES: ServiceDef[] = [
     phase: 3,
     keys: ["SOLANA_RPC_URL", "SOLANA_TRAIL_WALLET_SECRET_KEY", "PYUSD_DEVNET_MINT", "SOLANA_EXPLORER_BASE"],
     whenOff: "No public on-chain record. Decisions and payouts are unaffected; dashboard and receipts show 'trail disabled' instead of explorer links.",
-  },
-  {
-    id: "astropods",
-    name: "Astropods (agent monitoring)",
-    phase: 3,
-    keys: ["ASTROPODS_API_KEY"],
-    whenOff: "Verification runs without Astropods traces. Scoring unchanged.",
   },
 ];
 

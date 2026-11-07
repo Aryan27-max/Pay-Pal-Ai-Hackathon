@@ -78,6 +78,12 @@ envVarGroups:
         value: local
       - key: CLIP_MODEL_ID
         value: Xenova/clip-vit-base-patch32
+      # Memory on the free 512 MB plan (measured 2026-11-08, production server, 4 claims incl. voice):
+      # peak 416 MB with q4 + lean ONNX session + a 192 MB JS heap cap (538 MB before).
+      - key: CLIP_DTYPE
+        value: q4
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=192
       - key: ELASTIC_URL
         sync: false
       - key: ELASTIC_API_KEY

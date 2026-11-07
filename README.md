@@ -133,7 +133,6 @@ There are 12 fixture claims: 3 genuine, 2 borderline and **7 planted fakes**. Ea
 | **AG Grid Community** | Public dashboard | `app/dashboard` | ✅ MIT |
 | **Postman** | Collection + environments; run with Newman | `postman/`, `npm run test:api` | ✅ |
 | **Render** | Workflows tasks (5 parallel checks, payout, release) | `workflows/render.ts`, `render.yaml` | Built, not deployed: Workflows has no free tier, so verification runs inline |
-| **Astropods** | Agent runtime + monitoring | — | Not used: traces exist only for agents deployed to Astropods' cloud (account + usage credits); no local trace view |
 | **APIMatic** | PayPal SDK context | — | Not used. PayPal field names were checked against PayPal's official docs and OpenAPI specs |
 
 ## Zero-cost design choices

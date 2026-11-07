@@ -41,7 +41,6 @@ Use only these. Do not add other sponsors.
 | **CLIP** (Hugging Face / Elastic inference) | Image embeddings for duplicate and near-duplicate photo detection. |
 | **Elastic** | Stores photo embeddings and claims; kNN search for reused photos; geo search for nearby claims (community vouching). |
 | **Render** | Hosts the Next.js app and Postgres; **Render Workflows** runs each verification step as a durable, retryable task. |
-| **Astropods** | Runs and monitors the verification agents; we show its traces in the video. |
 | **Kernel** | Cloud browser that checks official disaster alert pages that have no API. |
 | **Zapier** | Alerts reviewers when a claim lands in the 50–74 band; alerts on pool low / payout failed. |
 | **Postman** | Collection for every internal and PayPal API call; shipped in the repo for judges. |
@@ -102,13 +101,13 @@ Outputs `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md` and `graphify-
   - [ ] Trail on chain: fund the trail wallet with devnet SOL (+ test PYUSD), then re-run the demo for signatures
   - [x] AG Grid public dashboard `/dashboard`, donor receipts `/receipt/[id]`, `/api/trail`, `/api/receipts/:id`
   - [x] Postman via Newman (`npm run test:api`, 40/40), judge-ready README
-  - [ ] Astropods: cut unless you decide otherwise (monitoring only for cloud-deployed agents)
   - [ ] PayPal Agent Toolkit: skipped (no payouts tool; direct tool calls undocumented)
-  - [ ] Deploy (prep done: memory measured, free Postgres = Neon); waits for your go-ahead
+  - [x] Deploy prep: peak 416 MB on the production server (CLIP q4 + lean ONNX + 192 MB heap cap; was 538 MB), all fakes still caught; plan = Render free web + Neon free Postgres
+  - [ ] Deploy: waits for your go-ahead
 - [ ] **Day 1 (Nov 7):** scaffold Next.js + TS + Postgres (Prisma); `lib/paypal` with OAuth token, Orders create/capture, webhook verify; donate button works in sandbox; Postman collection started.
 - [ ] **Day 2 (Nov 8):** claim intake API + claim simulator; `lib/ai` (Gemini), `lib/speech` (Whisper), EXIF reader; disaster feeds (GDACS, USGS); signal scorers.
 - [ ] **Day 3 (Nov 9):** Elastic + CLIP duplicate check and nearby-claims vouching; scoring engine + thresholds; Render Workflows pipeline; Zapier review alert; reviewer screen.
-- [ ] **Day 4 (Nov 10):** Payouts API; Solana devnet trail with test PYUSD memo; AG Grid public dashboard; donor receipt page; Kernel alert-page check; Astropods agent deploy + monitoring.
+- [ ] **Day 4 (Nov 10):** Payouts API; Solana devnet trail with test PYUSD memo; AG Grid public dashboard; donor receipt page; Kernel alert-page check.
 - [ ] **Day 5 (Nov 11):** deploy on Render; seed data; end-to-end run with the scripted demo; README, LICENSE, Postman export, architecture image.
 - [ ] **Day 6 (Nov 12, before 3 PM EST):** record and upload video; submit on Devpost.
 
@@ -118,7 +117,7 @@ Outputs `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md` and `graphify-
 2. **0:20–0:50** Stream simulator: Ron and Rahul donate with PayPal; the pool fills live.
 3. **0:50–1:40** Claim simulator fires: a genuine flood claim scores 86 → paid in seconds; a borderline one goes to review (Zapier alert pops); **a reused photo is caught** by Elastic + CLIP and rejected.
 4. **1:40–2:15** Public dashboard (AG Grid) + Solana explorer link; Ron opens his receipt: "your $10 → claim A7, flood zone, verified 3:42 PM".
-5. **2:15–2:50** Architecture slide (PayPal, Gemini, Elastic, Render, Astropods, Kernel, Zapier, Postman, APIMatic, AG Grid) and why it matters.
+5. **2:15–2:50** Architecture slide (PayPal, Gemini, Groq, Elastic, Render, Kernel, Zapier, Postman, AG Grid, Solana) and why it matters.
 
 ## 10. Definition of done (for the whole project)
 

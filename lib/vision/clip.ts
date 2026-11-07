@@ -14,13 +14,34 @@ export function clipModelId(): string {
   return process.env.CLIP_MODEL_ID?.trim() || DEFAULT_MODEL;
 }
 
+/**
+ * Weights: CLIP_DTYPE = q8 (default) | q4. Measured on the fixtures (2026-11-08, standalone peak RSS while
+ * embedding 4 photos × 7 crops): q8 293 MB, q4 250 MB; both keep the cropped fake at 0.941, the heavy edit at
+ * 0.954–0.958 and the closest different photo at 0.903–0.904, so the 0.92 threshold holds. uint8 pushed a
+ * different photo to 0.921 (false match) and fp16 peaked at 638 MB: not allowed.
+ * Lean ONNX session (1 thread, no CPU memory arena / memory pattern) trims the arena on small hosts.
+ */
+export const CLIP_DTYPES = ["q8", "q4"] as const;
+
+export function clipDtype(): (typeof CLIP_DTYPES)[number] {
+  const d = process.env.CLIP_DTYPE?.trim() || "q8";
+  return (CLIP_DTYPES as readonly string[]).includes(d) ? (d as (typeof CLIP_DTYPES)[number]) : "q8";
+}
+
 async function load(): Promise<Loaded> {
   const mode = process.env.CLIP_MODE?.trim() || "local";
   if (mode !== "local") throw new Error(`CLIP_MODE=${mode} is not supported (use local)`);
+  // Loaded lazily on the first photo check (never at server start).
   const { AutoProcessor, CLIPVisionModelWithProjection, RawImage } = await import("@huggingface/transformers");
+  const sharp = (await import("sharp")).default;
+  sharp.cache(false); // no decoded-image cache: photos are processed once
+  sharp.concurrency(1);
   const id = clipModelId();
   const processor = await AutoProcessor.from_pretrained(id);
-  const model = await CLIPVisionModelWithProjection.from_pretrained(id, { dtype: "q8" });
+  const model = await CLIPVisionModelWithProjection.from_pretrained(id, {
+    dtype: clipDtype(),
+    session_options: { intraOpNumThreads: 1, interOpNumThreads: 1, enableCpuMemArena: false, enableMemPattern: false },
+  });
   return {
     embed: async (bytes) => {
       const image = await RawImage.fromBlob(new Blob([Buffer.from(bytes)]));

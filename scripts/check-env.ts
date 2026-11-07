@@ -57,9 +57,9 @@ export const PHASE1_REQUIRED = CORE_REQUIRED;
 
 /** Phase 2 / Phase 3 keys = the keys of the optional services (lib/services.ts), per phase. */
 export const PHASE2_REQUIRED = [...new Set(SERVICES.filter((s) => s.phase === 2).flatMap((s) => s.keys))];
-export const PHASE3_REQUIRED = [...new Set(SERVICES.filter((s) => s.phase === 3 && s.id !== "astropods").flatMap((s) => s.keys))];
-/** Not required yet: Astropods is pending (Phase 3 research); deploy keys come last. */
-const OPTIONAL_ANY = ["ASTROPODS_API_KEY", "ELASTIC_API_KEY", "AI_DEMO_CACHE", "RENDER_API_KEY", "RENDER_WORKFLOW_SERVICE_ID", "RENDER_WORKFLOW_SLUG"];
+export const PHASE3_REQUIRED = [...new Set(SERVICES.filter((s) => s.phase === 3).flatMap((s) => s.keys))];
+/** Never required: Elastic Cloud key, demo cache flag, deploy keys (deploy comes last). */
+const OPTIONAL_ANY = ["ELASTIC_API_KEY", "AI_DEMO_CACHE", "RENDER_API_KEY", "RENDER_WORKFLOW_SERVICE_ID", "RENDER_WORKFLOW_SLUG"];
 
 /** Where to get each key, shown only when it is missing. */
 const WHERE: Record<string, string> = {
@@ -280,7 +280,7 @@ async function main(): Promise<void> {
   for (const phase of [2, 3] as const) {
     console.log(`\nPhase ${phase} services ${CORE_MODE ? dim("(optional in --core mode)") : dim("(required in full mode)")}`);
     for (const s of statuses.filter((x) => x.phase === phase)) {
-      const optional = CORE_MODE || s.id === "astropods";
+      const optional = CORE_MODE;
       for (const k of s.keys) {
         if (isSet(k)) console.log(`  ${ok("SET    ")} ${k}`);
         else if (optional) console.log(`  ${dim("SKIP   ")} ${k}  ${dim(WHERE[k] ? `→ ${WHERE[k]}` : "")}`);
@@ -293,7 +293,7 @@ async function main(): Promise<void> {
     }
   }
 
-  const known = new Set<string>([...CORE_REQUIRED, ...PHASE2_REQUIRED, ...PHASE3_REQUIRED, "ASTROPODS_API_KEY"]);
+  const known = new Set<string>([...CORE_REQUIRED, ...PHASE2_REQUIRED, ...PHASE3_REQUIRED]);
   const other = Object.keys(example).filter((k) => !known.has(k));
   console.log("\nOther keys (optional; deploy keys come last)");
   for (const k of other) console.log(`  ${isSet(k) ? ok("SET    ") : dim("not set")} ${k}${OPTIONAL_ANY.includes(k) ? "" : ""}`);

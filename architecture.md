@@ -8,7 +8,6 @@
 | Zapier (review + ops alerts) | `ZAPIER_REVIEW_WEBHOOK_URL`, `ZAPIER_ALERT_WEBHOOK_URL` | No Slack/email alerts. Reviewers use the /review queue; ops problems (pool low, payout failed, AI down) still show on /admin. Scoring unchanged. |
 | PayPal webhook signature (PAYPAL_WEBHOOK_ID) | `PAYPAL_WEBHOOK_ID` | Webhooks are not signature-verified; the app re-fetches each event's resource from PayPal before acting. Payout polling still settles payouts. |
 | Solana devnet trail (test PYUSD + Memo) | `SOLANA_RPC_URL`, `SOLANA_TRAIL_WALLET_SECRET_KEY`, `PYUSD_DEVNET_MINT`, `SOLANA_EXPLORER_BASE` | No public on-chain record. Decisions and payouts are unaffected; dashboard and receipts show 'trail disabled' instead of explorer links. |
-| Astropods (agent monitoring) | `ASTROPODS_API_KEY` | Verification runs without Astropods traces. Scoring unchanged. |
 | AI cost guard | `AI_DAILY_CALL_BUDGET_GEMINI` (400), `AI_DAILY_CALL_BUDGET_GROQ` (800) | Calls per provider per UTC day are counted in Postgres (`ai_usage`) and reserved atomically before each call. At the budget the provider is skipped (fallback to the other); with none left the claim goes to IN_REVIEW with the reason. Whisper counts against the Groq budget. |
 
  architecture.md — Relief Stream system design
@@ -44,7 +43,7 @@ flowchart LR
         W5[vouching check]
     end
 
-    subgraph Agents["Verification agents — Astropods"]
+    subgraph Agents["Verification agent"]
         AG[Gemini agent<br/>+ PayPal Agent Toolkit]
     end
 
@@ -385,7 +384,6 @@ relief-stream/
 │   ├── cache.ts              # feed/Kernel cache (memo + Postgres feed_cache)
 │   └── ledger.ts             # pool balance, donations, FIFO settlement
 ├── workflows/                # checks.ts (5 checks), verify-claim.ts, send-payout.ts, dispatch.ts, render.ts (task entry)
-├── agents/                   # Astropods agent (astropods.yml, Dockerfile)
 ├── simulators/               # stream + claim scripts and fixtures (incl. planted fakes)
 ├── prisma/schema.prisma  prisma.config.ts  prisma/migrations/
 ├── scripts/                  # check-env.ts, paypal-smoke.ts
@@ -409,7 +407,6 @@ relief-stream/
 | Image similarity | CLIP (`@huggingface/transformers`, ONNX on CPU, no API) → Elastic Serverless dense_vector kNN |
 | Search | Elastic Cloud (`@elastic/elasticsearch`) |
 | Browser agent | Kernel SDK (`@onkernel/sdk`) + `playwright-core` over CDP |
-| Agent runtime / monitoring | Astropods |
 | Chain | `@solana/web3.js`, `@solana/spl-token`, Memo program, devnet |
 | Dashboard | AG Grid (React) |
 | Alerts | Zapier Catch Hooks |
