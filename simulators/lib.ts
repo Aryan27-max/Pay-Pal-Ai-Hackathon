@@ -16,21 +16,40 @@ export function operatorToken(): string {
   return t;
 }
 
-export const ClaimFixtureSchema = z.object({
-  key: z.string(),
-  kind: z.enum(["genuine", "borderline", "fake"]),
-  expect: z.enum(["APPROVED", "IN_REVIEW", "REJECTED"]),
-  emailIndex: z.number().int().min(0),
-  lat: z.number(),
-  lon: z.number(),
-  photo: z.string(),
-  message: z.string(),
-});
+const Outcome = z.enum(["APPROVED", "IN_REVIEW", "REJECTED"]);
+export const ClaimFixtureSchema = z
+  .object({
+    key: z.string(),
+    kind: z.enum(["genuine", "borderline", "fake"]),
+    expect: z.array(Outcome).min(1),
+    caughtBy: z.string().optional(),
+    emailIndex: z.number().int().min(0).optional(),
+    email: z.string().email().optional(),
+    lat: z.number(),
+    lon: z.number(),
+    photo: z.string(),
+    message: z.string(),
+    audio: z.string().optional(),
+    fallbackMessage: z.string().optional(),
+  })
+  .refine((c) => c.emailIndex !== undefined || c.email, "fixture needs emailIndex or email");
 export type ClaimFixture = z.infer<typeof ClaimFixtureSchema>;
 
 export function loadClaimFixtures(): ClaimFixture[] {
   const raw = JSON.parse(fs.readFileSync(path.join(FIXTURES, "claims.json"), "utf8")) as { claims: unknown[] };
   return z.array(ClaimFixtureSchema).parse(raw.claims);
+}
+
+export const AUDIO_EXT: Record<string, string> = { ".m4a": "audio/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg", ".webm": "audio/webm" };
+
+/** fixtures/audio/<base>.<ext> for the first extension that exists, or null (clip not recorded yet). */
+export function resolveAudio(base: string | undefined): { file: string; mime: string } | null {
+  if (!base) return null;
+  for (const [ext, mime] of Object.entries(AUDIO_EXT)) {
+    const file = path.join(FIXTURES, "audio", `${base}${ext}`);
+    if (fs.existsSync(file)) return { file, mime };
+  }
+  return null;
 }
 
 /** Sandbox claimant emails. --placeholder uses example.com addresses (payouts end UNCLAIMED). */

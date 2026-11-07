@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { sendOpsAlert } from "@/lib/alerts";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { donorPublicId } from "@/lib/privacy";
 import { planFifoAllocation, toCents } from "@/lib/scoring";
@@ -78,7 +79,21 @@ export async function recordDonation(cap: CapturedDonation, source: "paypal_butt
  * SUCCESS → FIFO allocations + claim PAID. Anything else final → claim PAYOUT_FAILED.
  * Safe to call more than once (poller and webhook may both report).
  */
+export const FAILED_PAYOUT_STATUSES = ["FAILED", "UNCLAIMED", "RETURNED", "BLOCKED", "REFUNDED", "REVERSED"];
+
 export async function settlePayout(payoutId: string, result: { itemStatus: string | null; payoutItemId: string | null; error: string | null }) {
+  const settled = await settlePayoutTx(payoutId, result);
+  if (FAILED_PAYOUT_STATUSES.includes(settled.status)) {
+    const claim = await db.claim.findUnique({ where: { id: settled.claimId }, select: { claimPublicId: true } });
+    await sendOpsAlert(
+      { kind: "payout_failed", severity: "high", summary: `Payout for ${claim?.claimPublicId ?? "a claim"} ended ${settled.status}`, claimPublicId: claim?.claimPublicId, detail: `sender_batch_id ${settled.senderBatchId}; ${settled.error ?? ""}` },
+      settled.id,
+    );
+  }
+  return settled;
+}
+
+async function settlePayoutTx(payoutId: string, result: { itemStatus: string | null; payoutItemId: string | null; error: string | null }) {
   return db.$transaction(
     async (tx) => {
       await lockPool(tx);
@@ -100,7 +115,7 @@ export async function settlePayout(payoutId: string, result: { itemStatus: strin
           await tx.donation.update({ where: { id: p.donationId }, data: { remainingUsd: { decrement: usd(p.amountCents) } } });
         }
         await tx.claim.update({ where: { id: payout.claimId }, data: { status: "PAID" } });
-      } else if (["FAILED", "UNCLAIMED", "RETURNED", "BLOCKED", "REFUNDED", "REVERSED"].includes(status)) {
+      } else if (FAILED_PAYOUT_STATUSES.includes(status)) {
         await tx.claim.update({ where: { id: payout.claimId }, data: { status: "PAYOUT_FAILED" } });
       }
       return tx.payout.update({

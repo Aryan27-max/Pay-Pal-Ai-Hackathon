@@ -1,11 +1,14 @@
 {
   "eventId": "demo-flood-stcharles-2026",
   "type": "flood",
-  "name": "Missouri River flood (simulated demo event)",
+  "name": "Missouri River flood (SIMULATED demo event)",
   "region": "St. Charles County, Missouri, USA",
   "startedAt": "2026-11-04",
-  "center": { "lat": 38.7881, "lon": -90.4974 },
+  "center": {
+    "lat": 38.7881,
+    "lon": -90.4974
+  },
   "radiusKm": 20,
   "bufferKm": 10,
-  "note": "Phase 1 fixed demo zone. Phase 2 replaces this with live GDACS/USGS event areas."
+  "note": "SIMULATED event for the demo fixtures. It goes through the same code path as real GDACS/USGS events (lib/disasters). Turn off with SIMULATED_EVENT=off."
 }

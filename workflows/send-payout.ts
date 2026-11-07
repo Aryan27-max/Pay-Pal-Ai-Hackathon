@@ -1,12 +1,13 @@
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
+import { hourKey, sendOpsAlert } from "@/lib/alerts";
 import { lockPool, poolBalanceCents, settlePayout, usd } from "@/lib/ledger";
 import { PayPalError } from "@/lib/paypal/client";
 import { createPayout, senderBatchId, waitForPayout, type PayoutResult } from "@/lib/paypal/payouts";
 import { packetFor, planWaitingFundsRelease, scoringConfigFrom } from "@/lib/scoring";
 
 /**
- * send_payout(claim_id). Phase 1: called inline. Phase 2: a Render Workflows task.
+ * send_payout(claim_id). A Render Workflows task (workflows/render.ts), or inline when Workflows is off.
  *
  * Guards (hard rules 1–3):
  *  - The claim's latest decision must be APPROVED (made by lib/scoring or a reviewer approve).
@@ -85,7 +86,21 @@ export async function sendPayout(claimId: string, opts: { waitMs?: number } = {}
   if (result.final) await settlePayout(reserved.payoutId, result);
   else await db.payout.update({ where: { id: reserved.payoutId }, data: { payoutItemId: result.payoutItemId } });
 
+  await alertIfPoolLow();
   return { kind: "SENT", payoutId: reserved.payoutId, senderBatchId: reserved.senderBatchId, payoutBatchId, result };
+}
+
+/** Ops alert (at most one per hour) when the pool drops below POOL_LOW_USD. Never throws. */
+export async function alertIfPoolLow(): Promise<void> {
+  try {
+    const pool = await poolBalanceCents(db);
+    const min = Math.round(env().POOL_LOW_USD * 100);
+    if (pool < min) {
+      await sendOpsAlert({ kind: "pool_low", severity: "medium", summary: `Relief pool is $${usd(pool)} (below $${usd(min)})`, detail: "New claims will wait for funds." }, hourKey());
+    }
+  } catch {
+    /* alerts never block payouts */
+  }
 }
 
 /** Re-poll payouts still PENDING (e.g. after a timeout) and settle the final ones. */

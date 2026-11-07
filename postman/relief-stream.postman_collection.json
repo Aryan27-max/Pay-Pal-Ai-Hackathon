@@ -255,8 +255,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"201\",()=>pm.response.to.have.status(201));",
-                  "const j=pm.response.json();pm.test(\"engine outcome\",()=>pm.expect([\"APPROVED\",\"IN_REVIEW\",\"REJECTED\"]).to.include(j.outcome));",
+                  "pm.test(\"201 inline or 202 queued (Render Workflows)\",()=>pm.expect([201,202]).to.include(pm.response.code));",
+                  "const j=pm.response.json();",
+                  "if(pm.response.code===201) pm.test(\"engine outcome\",()=>pm.expect([\"APPROVED\",\"IN_REVIEW\",\"REJECTED\"]).to.include(j.outcome));",
+                  "if(pm.response.code===202) pm.test(\"task run id\",()=>pm.expect(j.taskRunId).to.be.a(\"string\"));",
+                  "pm.test(\"no email in response\",()=>pm.expect(pm.response.text()).to.not.include(\"@\"));",
                   "pm.collectionVariables.set(\"claimPublicId\", j.claimPublicId);",
                   "if(j.payout&&j.payout.payoutBatchId) pm.collectionVariables.set(\"payoutBatchId\", j.payout.payoutBatchId);"
                 ]
@@ -300,6 +303,59 @@
           }
         },
         {
+          "name": "Submit voice-note claim (multipart, audio)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 or 202\",()=>pm.expect([201,202]).to.include(pm.response.code));",
+                  "const j=pm.response.json();",
+                  "if(pm.response.code===201){pm.test(\"voice note was transcribed\",()=>pm.expect(j.detail.message.voice).to.eql(true));",
+                  "pm.test(\"transcript is not in the response\",()=>pm.expect(pm.response.text()).to.not.include(\"Kathmandu\"));}",
+                  "pm.collectionVariables.set(\"voiceClaimPublicId\", j.claimPublicId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/claims",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "lat",
+                  "value": "38.775",
+                  "type": "text"
+                },
+                {
+                  "key": "lon",
+                  "value": "-90.47",
+                  "type": "text"
+                },
+                {
+                  "key": "paypal_email",
+                  "value": "postman.voice@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "photo",
+                  "type": "file",
+                  "src": "simulators/fixtures/photos/fake-contradictory-voice.jpg"
+                },
+                {
+                  "key": "audio",
+                  "type": "file",
+                  "src": "simulators/fixtures/audio/fake-contradictory-voice.wav"
+                }
+              ]
+            }
+          }
+        },
+        {
           "name": "Claim status (public, redacted)",
           "event": [
             {
@@ -317,6 +373,53 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/claims/{{claimPublicId}}"
+          }
+        },
+        {
+          "name": "Claim report (reviewer, ?detail=1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test(\"five signals\",()=>pm.expect(Object.keys(j.signals)).to.have.members([\"photo\",\"location\",\"message\",\"uniqueness\",\"vouching\"]));",
+                  "pm.test(\"evidence details\",()=>pm.expect(j.detail).to.have.property(\"location\"));",
+                  "pm.test(\"no email, no transcript, no replay url\",()=>{const t=pm.response.text();pm.expect(t).to.not.include(\"@\");pm.expect(t).to.not.include(\"replay\");});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-reviewer-token",
+                "value": "{{reviewerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/claims/{{claimPublicId}}?detail=1"
+          }
+        },
+        {
+          "name": "Claim report without token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401\",()=>pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/claims/{{claimPublicId}}?detail=1"
           }
         },
         {
@@ -390,7 +493,7 @@
             "url": "{{baseUrl}}/api/review/{{reviewClaimId}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"action\": \"approve\"\n}",
+              "raw": "{\n  \"action\": \"approve\",\n  \"reason\": \"Photo and voice note match the flood; location confirmed.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -427,7 +530,44 @@
             "url": "{{baseUrl}}/api/review/{{reviewClaimId}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"action\": \"approve\",\n  \"amountUsd\": 1000\n}",
+              "raw": "{\n  \"action\": \"approve\",\n  \"reason\": \"trying to change the amount\",\n  \"amountUsd\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reviewer approve without reason → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400\",()=>pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-reviewer-token",
+                "value": "{{reviewerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/review/{{reviewClaimId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

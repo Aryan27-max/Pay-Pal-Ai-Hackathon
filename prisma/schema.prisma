@@ -45,6 +45,13 @@ model Claim {
   aiProvider      String?    @map("ai_provider") // gemini | groq | null (no AI call: duplicate, or both providers failed)
   aiModel         String?    @map("ai_model")
   aiCached        Boolean    @default(false) @map("ai_cached") // true = demo cache hit (fixture claims only)
+  audioSha256     String?    @map("audio_sha256")
+  transcript      String? // PRIVATE: voice-note transcript (never public, never on-chain)
+  transcriptLang  String?    @map("transcript_lang")
+  eventSource     String?    @map("event_source") // simulated | gdacs | usgs
+  kernelStatus    String?    @map("kernel_status") // active | none | failed | skipped | cached
+  kernelReplayUrl String?    @map("kernel_replay_url") // PRIVATE (replay URLs are sensitive): /admin only
+  evidence        ClaimEvidence?
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
   decisions       Decision[]
@@ -125,4 +132,36 @@ model AiCache {
   createdAt     DateTime @default(now()) @map("created_at")
 
   @@map("ai_cache")
+}
+
+// Photo + voice bytes, held ONLY until verification finishes, then deleted (verify-claim). Lets a
+// Render Workflows task fetch evidence by claim id instead of passing bytes through task arguments.
+model ClaimEvidence {
+  claimId   String   @id @map("claim_id") @db.Uuid
+  claim     Claim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  photo     Bytes
+  photoMime String   @map("photo_mime")
+  audio     Bytes?
+  audioMime String?  @map("audio_mime")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("claim_evidence")
+}
+
+// Shared cache for disaster feeds and Kernel alert-page checks (all workflow instances see it).
+model FeedCache {
+  key       String   @id
+  body      Json
+  fetchedAt DateTime @default(now()) @map("fetched_at")
+
+  @@map("feed_cache")
+}
+
+// De-duplicates Zapier alerts (one per key, e.g. review:<claim_public_id> or pool_low:<hour>).
+model AlertSent {
+  key    String   @id
+  kind   String
+  sentAt DateTime @default(now()) @map("sent_at")
+
+  @@map("alert_sent")
 }

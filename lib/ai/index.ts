@@ -25,7 +25,9 @@ export type DisasterContext = {
 
 export type ClaimEvidence = {
   photo: { bytes: Uint8Array; mimeType: string };
-  messageText: string;
+  messageText: string; // typed text (may be empty when the claimant only sent a voice note)
+  /** Voice-note transcript from lib/speech (private). Goes into the SAME single call. */
+  voice?: { text: string; language: string } | null;
   disaster: DisasterContext;
   // Location is deliberately NOT sent: it is a separate code-computed signal (no double counting).
 };
@@ -42,24 +44,38 @@ Return ONLY JSON matching the schema. All scores are between 0 and 1.
 
 - photo_matches_disaster: how clearly the photo shows damage consistent with the stated disaster type
   (e.g. standing floodwater, water-damaged homes for a flood). An ordinary undamaged scene scores low (< 0.3).
+  Judge what the scene shows, not the camera angle: a street-level, indoor or aerial/elevated view of the same
+  kind of damage scores the same, and the claimant's own home does not need to be identifiable.
 - photo_ai_generated_risk: likelihood the image is AI-generated or digitally fabricated
   (look for warped text, impossible geometry, smeared details, synthetic lighting). A normal camera photo scores low.
 - message_consistency: whether the claimant's message plausibly describes being affected by THIS event
-  (disaster type, place, timing) in a specific, first-person way. Generic copy-paste templates,
-  mismatched disasters, or requests unrelated to the event score low.
+  (disaster type, place, timing) in a specific, first-person way. The message is the typed text and/or an
+  automatic transcript of a voice note; judge them together. Generic copy-paste templates, a different
+  disaster or place than the event, or requests unrelated to the event score low.
 - Score each field on its own evidence: the two photo fields from the photo; message_consistency from the
   message text alone (against the event's type, place and timing). If the photo and the message disagree
   (e.g. scenery that does not fit the stated region), lower photo_matches_disaster and add a red flag,
   but do not also lower message_consistency: the same problem must not be counted twice.
-- language_detected: ISO 639-1 code of the message language.
+- language_detected: ISO 639-1 code of the message language (of the voice note if there is no typed text).
 - red_flags: short phrases for anything a human reviewer should look at (empty array if none).
 - explanation: one short paragraph (max 3 sentences) a reviewer can read. Do not repeat personal details.`;
+
+/** The message block the AI sees (typed text + voice transcript). Also the demo-cache message identity. */
+export function messageBlock(e: Pick<ClaimEvidence, "messageText" | "voice">): string {
+  const parts: string[] = [];
+  const typed = e.messageText.trim();
+  if (typed) parts.push(`Claimant message (typed, verbatim, between triple quotes):\n"""${typed.slice(0, 2000)}"""`);
+  if (e.voice?.text.trim()) {
+    parts.push(`Claimant voice note (automatic transcript, detected language: ${e.voice.language}, between triple quotes):\n"""${e.voice.text.trim().slice(0, 2000)}"""`);
+  }
+  if (!parts.length) parts.push("Claimant message: (none: no typed text and no readable voice note)");
+  return parts.join("\n");
+}
 
 export function buildAssessPrompt(e: Omit<ClaimEvidence, "photo">): string {
   return [
     `Disaster event: ${e.disaster.name} (type: ${e.disaster.type}), region: ${e.disaster.region}, started ${e.disaster.startedAt}.`,
-    `Claimant message (verbatim, between triple quotes):`,
-    `"""${e.messageText.slice(0, 2000)}"""`,
+    messageBlock(e),
     `Assess the attached photo and the message.`,
   ].join("\n");
 }
@@ -67,7 +83,7 @@ export function buildAssessPrompt(e: Omit<ClaimEvidence, "photo">): string {
 /** Changes whenever the prompt text changes, so cached demo results never outlive their prompt. */
 export const PROMPT_VERSION = createHash("sha256")
   .update(ASSESS_SYSTEM_PROMPT)
-  .update(buildAssessPrompt({ messageText: "\u0000", disaster: { eventId: "", type: "", name: "", region: "", startedAt: "" } }))
+  .update(buildAssessPrompt({ messageText: "\u0000", voice: { text: "\u0001", language: "xx" }, disaster: { eventId: "", type: "", name: "", region: "", startedAt: "" } }))
   .digest("hex")
   .slice(0, 12);
 
@@ -133,7 +149,7 @@ export async function assessClaim(e: ClaimEvidence, opts: AssessOptions = {}): P
   const calls: AiCalls = { gemini: 0, groq: 0 };
 
   const photoSha = createHash("sha256").update(e.photo.bytes).digest("hex");
-  const msgSha = messageSha256(e.messageText);
+  const msgSha = messageSha256(messageBlock(e));
   const keyFor = (model: string) => cacheKey(photoSha, msgSha, model, PROMPT_VERSION);
 
   if (opts.useCache) {

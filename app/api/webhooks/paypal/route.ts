@@ -1,5 +1,5 @@
 import { after } from "next/server";
-import { retryWaitingFunds } from "@/workflows/send-payout";
+import { dispatchRelease } from "@/workflows/dispatch";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { recordDonation, settlePayout } from "@/lib/ledger";
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
         if (cap) {
           const r = await recordDonation(cap, "paypal_button", env().CLAIM_ID_SALT);
           handled = r.recorded ? "donation_recorded" : `donation_skipped: ${r.reason}`;
-          if (r.recorded) after(() => retryWaitingFunds().then(() => undefined, () => undefined));
+          if (r.recorded) after(() => dispatchRelease().then(() => undefined, () => undefined));
         }
       }
     } else if (event.event_type.startsWith("PAYMENT.PAYOUTS-ITEM.")) {

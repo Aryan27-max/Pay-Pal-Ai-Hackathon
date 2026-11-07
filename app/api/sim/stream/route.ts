@@ -4,7 +4,7 @@ import { env } from "@/lib/env";
 import { recordDonation } from "@/lib/ledger";
 import { createSandboxCardDonation, DonationAmountSchema, extractCapture } from "@/lib/paypal/orders";
 import { errorResponse, json, reviewerToken, unauthorized } from "@/lib/http";
-import { retryWaitingFunds } from "@/workflows/send-payout";
+import { dispatchRelease } from "@/workflows/dispatch";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -38,8 +38,11 @@ export async function POST(req: Request) {
         results.push({ name: d.name, ok: false, error: e instanceof Error ? e.message : "error" });
       }
     }
-    // Await here (demo route) so the caller sees which WAITING_FUNDS claims this wave released.
-    const released = (await retryWaitingFunds({ waitMs: 30_000 })).map((r) => ({
+    // Inline: await here (demo route) so the caller sees which WAITING_FUNDS claims this wave released.
+    // Render Workflows: the release runs as a task; the caller polls the claims instead.
+    const d = await dispatchRelease({ waitMs: 30_000 });
+    if (d.mode === "workflow") return json({ results, released: [], releaseTaskRunId: d.taskRunId });
+    const released = d.released.map((r) => ({
       claimPublicId: r.claimPublicId,
       kind: r.result.kind,
       senderBatchId: r.result.kind === "SENT" ? r.result.senderBatchId : undefined,

@@ -56,13 +56,50 @@ export const clamp01 = (x: number) => (Number.isFinite(x) ? Math.min(1, Math.max
 
 /* ---------------- signal builders (pure) ---------------- */
 
-/** Photo = matches disaster × (1 − AI-generated risk). */
-export function photoSignal(ai: Pick<AiAssessment, "photo_matches_disaster" | "photo_ai_generated_risk">): number {
-  return clamp01(clamp01(ai.photo_matches_disaster) * (1 - clamp01(ai.photo_ai_generated_risk)));
+/* ---------------- Phase 2 constants (architecture.md §5) ---------------- */
+
+/** Raw CLIP cosine at or above which two photos are the same scene (tuned on fixtures, see clip:tune). */
+export const CLIP_DUPLICATE_THRESHOLD = 0.92;
+/** A claim farther than this from every active event area is rejected (appealable), with no AI call. */
+export const FAR_FROM_EVENT_KM = 100;
+/** No auto-payout when the photo or message signal is below this: a human looks first. */
+export const CORE_EVIDENCE_FLOOR = 0.3;
+/** photo_ai_generated_risk at or above this is named in the decision reason. */
+export const AI_GENERATED_FLAG = 0.8;
+
+/** EXIF confidence: plausible 1.0, missing 0.9 (stripped by most apps: never a fail), contradicting 0.6. */
+export type ExifFacts = { present: boolean; takenAt?: Date; gps?: { lat: number; lon: number } };
+export type ExifVerdict = { factor: number; reason: "plausible" | "missing" | "too_old" | "in_future" | "gps_far" };
+export const EXIF_GPS_MAX_KM = 50;
+
+export function exifFactor(
+  exif: ExifFacts,
+  ctx: { eventStart: Date; now: Date; claimPoint: { lat: number; lon: number }; distanceKm: (a: { lat: number; lon: number }, b: { lat: number; lon: number }) => number },
+): ExifVerdict {
+  if (!exif.present) return { factor: 0.9, reason: "missing" };
+  const day = 24 * 3600 * 1000;
+  if (exif.takenAt) {
+    if (exif.takenAt.getTime() < ctx.eventStart.getTime() - day) return { factor: 0.6, reason: "too_old" };
+    if (exif.takenAt.getTime() > ctx.now.getTime() + day) return { factor: 0.6, reason: "in_future" };
+  }
+  if (exif.gps && ctx.distanceKm(exif.gps, ctx.claimPoint) > EXIF_GPS_MAX_KM) return { factor: 0.6, reason: "gps_far" };
+  return { factor: 1, reason: "plausible" };
+}
+
+/** Photo = matches disaster × (1 − AI-generated risk) × EXIF factor. */
+export function photoSignal(ai: Pick<AiAssessment, "photo_matches_disaster" | "photo_ai_generated_risk">, exif = 1): number {
+  return clamp01(clamp01(ai.photo_matches_disaster) * (1 - clamp01(ai.photo_ai_generated_risk)) * clamp01(exif));
 }
 
 export function messageSignal(ai: Pick<AiAssessment, "message_consistency">): number {
   return clamp01(ai.message_consistency);
+}
+
+/** Location by distance OUTSIDE the event area (0 = inside): inside 1, within the buffer 0.5, else 0. */
+export function areaLocationSignal(distanceOutsideKm: number, bufferKm: number): number {
+  if (!Number.isFinite(distanceOutsideKm) || distanceOutsideKm < 0) return 0;
+  if (distanceOutsideKm === 0) return 1;
+  return distanceOutsideKm <= bufferKm ? 0.5 : 0;
 }
 
 /** Location: inside the event area = 1, within the buffer ring = 0.5, otherwise 0. */
@@ -73,9 +110,17 @@ export function locationSignal(distanceKmFromCentre: number, radiusKm: number, b
   return 0;
 }
 
-/** Uniqueness is binary: any match on PayPal account or photo hash = 0 (hard reject). */
-export function uniquenessSignal(dup: { sameEmail: boolean; samePhoto: boolean; sameDevice?: boolean }): number {
-  return dup.sameEmail || dup.samePhoto || dup.sameDevice ? 0 : 1;
+/** Uniqueness is binary: any match on PayPal account, photo hash or a CLIP near-duplicate = 0 (hard reject). */
+export function uniquenessSignal(dup: { sameEmail: boolean; samePhoto: boolean; nearDuplicatePhoto?: boolean; sameDevice?: boolean }): number {
+  return dup.sameEmail || dup.samePhoto || dup.nearDuplicatePhoto || dup.sameDevice ? 0 : 1;
+}
+
+/** Which duplicate rule fired, for the reason text (first match wins). */
+export function duplicateReason(dup: { sameEmail: boolean; samePhoto: boolean; nearDuplicatePhoto?: boolean; nearCosine?: number }): string | null {
+  if (dup.sameEmail) return "this PayPal account already has a claim";
+  if (dup.samePhoto) return "this exact photo (same SHA-256) was already submitted";
+  if (dup.nearDuplicatePhoto) return `near-duplicate of an earlier claim's photo (CLIP cosine ${dup.nearCosine?.toFixed(3) ?? "?"} >= ${CLIP_DUPLICATE_THRESHOLD})`;
+  return null;
 }
 
 /** Vouching: verified claims within 10 km; 2 or more = full signal. */
@@ -93,26 +138,68 @@ export function totalScore(signals: Signals, weights: Weights): number {
   return Math.round(s);
 }
 
+export type DecideOptions = {
+  aiValid: boolean;
+  aiFailure?: string;
+  /** Which duplicate rule fired (see duplicateReason). */
+  duplicate?: string | null;
+  /** Set when the claim is farther than FAR_FROM_EVENT_KM from every active event. */
+  farFromEvent?: { nearestKm: number | null } | null;
+  /** Near-duplicate photo check could not run (Elastic/CLIP down): never auto-pay an unchecked photo. */
+  photoCheckUnavailable?: boolean;
+  /** Raw AI risk, only used to name the AI-generated flag in the reason. */
+  aiGeneratedRisk?: number;
+};
+
+/** Short notes on weak core evidence (pure). */
+export function weakEvidence(signals: Signals, aiGeneratedRisk?: number): string[] {
+  const notes: string[] = [];
+  if (typeof aiGeneratedRisk === "number" && aiGeneratedRisk >= AI_GENERATED_FLAG) notes.push(`photo likely AI-generated (risk ${aiGeneratedRisk.toFixed(2)})`);
+  if (clamp01(signals.photo) < CORE_EVIDENCE_FLOOR) notes.push(`photo evidence weak (${clamp01(signals.photo).toFixed(2)} < ${CORE_EVIDENCE_FLOOR})`);
+  if (clamp01(signals.message) < CORE_EVIDENCE_FLOOR) notes.push(`message does not fit the event (${clamp01(signals.message).toFixed(2)} < ${CORE_EVIDENCE_FLOOR})`);
+  return notes;
+}
+
 /**
  * Hard rules, in order:
- *  1. uniqueness = 0 → REJECTED, whatever the score
- *  2. no valid AI assessment (Gemini and the Groq fallback both failed) → IN_REVIEW
- *  3. score ≥ auto → APPROVED; review ≤ score < auto → IN_REVIEW; else REJECTED
+ *  1. uniqueness = 0 (PayPal account, photo hash or CLIP near-duplicate) → REJECTED, whatever the score
+ *  2. farther than FAR_FROM_EVENT_KM from every active event → REJECTED (appealable)
+ *  3. no valid AI assessment (Gemini and the Groq fallback both failed) → IN_REVIEW
+ *  4. score ≥ auto → APPROVED, unless core evidence (photo or message) < CORE_EVIDENCE_FLOOR or the
+ *     near-duplicate photo check could not run → IN_REVIEW
+ *  5. review ≤ score < auto → IN_REVIEW; else REJECTED
+ * Code-proven fraud (rules 1–2) is rejected; AI-judged problems (rule 4) go to a human.
  */
-export function decide(signals: Signals, cfg: ScoringConfig, opts: { aiValid: boolean; aiFailure?: string } = { aiValid: true }): Decision {
+export function decide(signals: Signals, cfg: ScoringConfig, opts: DecideOptions = { aiValid: true }): Decision {
   const score = totalScore(signals, cfg.weights);
   if (clamp01(signals.uniqueness) === 0) {
-    return { outcome: "REJECTED", score, reason: "duplicate: PayPal account or photo already used (hard rule)" };
+    return { outcome: "REJECTED", score, reason: `duplicate: ${opts.duplicate ?? "PayPal account or photo already used"} (hard rule)` };
+  }
+  if (opts.farFromEvent) {
+    const near = opts.farFromEvent.nearestKm;
+    return {
+      outcome: "REJECTED",
+      score,
+      reason: `not within ${FAR_FROM_EVENT_KM} km of any active disaster event${near !== null ? ` (nearest ${Math.round(near)} km away)` : " (no active events)"}; appealable (hard rule)`,
+    };
   }
   if (!opts.aiValid) {
     const why = opts.aiFailure ? `: ${opts.aiFailure.slice(0, 400)}` : "";
     return { outcome: "IN_REVIEW", score, reason: `no valid AI assessment (Gemini and Groq fallback both failed); needs a human${why}` };
   }
-  if (score >= cfg.autoPayoutThreshold) return { outcome: "APPROVED", score, reason: `score ${score} ≥ ${cfg.autoPayoutThreshold}` };
-  if (score >= cfg.humanReviewThreshold) {
-    return { outcome: "IN_REVIEW", score, reason: `score ${score} in review band ${cfg.humanReviewThreshold}–${cfg.autoPayoutThreshold - 1}` };
+  const weak = weakEvidence(signals, opts.aiGeneratedRisk);
+  if (score >= cfg.autoPayoutThreshold) {
+    if (weak.length) return { outcome: "IN_REVIEW", score, reason: `score ${score} ≥ ${cfg.autoPayoutThreshold} but no auto-payout: ${weak.join("; ")}` };
+    if (opts.photoCheckUnavailable) {
+      return { outcome: "IN_REVIEW", score, reason: `score ${score} ≥ ${cfg.autoPayoutThreshold} but the near-duplicate photo check could not run; needs a human` };
+    }
+    return { outcome: "APPROVED", score, reason: `score ${score} ≥ ${cfg.autoPayoutThreshold}` };
   }
-  return { outcome: "REJECTED", score, reason: `score ${score} < ${cfg.humanReviewThreshold} (appealable)` };
+  const note = weak.length ? `; ${weak.join("; ")}` : "";
+  if (score >= cfg.humanReviewThreshold) {
+    return { outcome: "IN_REVIEW", score, reason: `score ${score} in review band ${cfg.humanReviewThreshold}–${cfg.autoPayoutThreshold - 1}${note}` };
+  }
+  return { outcome: "REJECTED", score, reason: `score ${score} < ${cfg.humanReviewThreshold} (appealable)${note}` };
 }
 
 /* ---------------- packet sizing ---------------- */

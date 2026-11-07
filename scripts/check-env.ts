@@ -4,6 +4,8 @@
  * Reports every key in .env.example as SET / MISSING, runs sanity checks and
  * live checks: PayPal OAuth, ONE cheap Gemini call (GEMINI_MODEL_VISION), ONE cheap Groq call
  * (GROQ_VISION_MODEL, if set), Postgres SELECT 1. No other AI probes: free tiers count every request.
+ * Phase 2: Elastic ping (GET /), Kernel auth (list browsers, limit 1: read-only, starts no browser)
+ * and ONE Zapier test POST (kind "test"; skip it with --no-zapier, each POST can use a Zap task).
  *
  * SECURITY: this script never prints a value from .env, not even partially.
  * Every error message is scrubbed of all env values before it is shown.
@@ -46,6 +48,16 @@ export const PHASE1_REQUIRED = [
 
 const PHASE1_OPTIONAL = ["PAYPAL_WEBHOOK_ID", "GROQ_API_KEY", "GROQ_VISION_MODEL", "AI_DEMO_CACHE"] as const;
 
+/** Phase 2 (fraud-proof verification). HF_API_TOKEN is added only when CLIP_MODE=huggingface. */
+export const PHASE2_REQUIRED = [
+  "ELASTIC_URL",
+  "ELASTIC_API_KEY",
+  "KERNEL_API_KEY",
+  "ZAPIER_REVIEW_WEBHOOK_URL",
+  "ZAPIER_ALERT_WEBHOOK_URL",
+  "RENDER_API_KEY",
+] as const;
+
 /** Where to get each Phase 1 key, shown only when it is missing. */
 const WHERE: Record<string, string> = {
   CLAIM_ID_SALT: "generate: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
@@ -63,6 +75,13 @@ const WHERE: Record<string, string> = {
   SIM_CLAIMANT_EMAILS: "developer.paypal.com → Testing Tools → Sandbox Accounts → 6 US Personal accounts (comma-separated)",
   GROQ_API_KEY: "console.groq.com → API Keys (free tier)",
   GROQ_VISION_MODEL: "console.groq.com/docs/vision → a model that accepts images",
+  ELASTIC_URL: "cloud.elastic.co → your deployment/project → Elasticsearch endpoint (https://…)",
+  ELASTIC_API_KEY: "Kibana → Stack Management → API keys → Create (copy the encoded key)",
+  KERNEL_API_KEY: "dashboard.onkernel.com → API Keys (Developer plan is free)",
+  ZAPIER_REVIEW_WEBHOOK_URL: "zapier.com → new Zap → Trigger: Webhooks by Zapier → Catch Hook → copy the URL",
+  ZAPIER_ALERT_WEBHOOK_URL: "a SECOND Zap with its own Catch Hook (not the review one)",
+  RENDER_API_KEY: "dashboard.render.com → Account Settings → API Keys",
+  HF_API_TOKEN: "huggingface.co → Settings → Access Tokens (read)",
 };
 
 type Env = Record<string, string>;
@@ -154,6 +173,30 @@ async function checkGroq(env: Env, model: string): Promise<void> {
   if (!res.ok || !body.choices?.length) throw new Error(`HTTP ${res.status} ${body.error?.code ?? body.error?.type ?? ""} ${body.error?.message ?? ""}`.trim());
 }
 
+/** Elastic: GET / (cluster info) with an API key. Read-only. */
+async function checkElastic(env: Env): Promise<void> {
+  const res = await fetch(env.ELASTIC_URL!.replace(/\/+$/, "") + "/", { headers: { Authorization: `ApiKey ${env.ELASTIC_API_KEY ?? ""}` } });
+  const body = (await res.json().catch(() => ({}))) as { version?: { number?: string }; error?: { type?: string } };
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${body.error?.type ?? ""}`.trim());
+}
+
+/** Kernel: GET /browsers?limit=1 (bearer auth, OpenAPI at api.onkernel.com/spec.json). Starts no browser, costs nothing. */
+async function checkKernel(env: Env): Promise<void> {
+  const res = await fetch("https://api.onkernel.com/browsers?limit=1", { headers: { Authorization: `Bearer ${env.KERNEL_API_KEY ?? ""}` } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}
+
+/** Zapier: ONE test POST to the review Catch Hook. Payload has no PII and kind "test" so Zaps can filter it out. */
+async function checkZapier(env: Env): Promise<void> {
+  const res = await fetch(env.ZAPIER_REVIEW_WEBHOOK_URL!, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: "test", source: "check:env", message: "Relief Stream connectivity test. Ignore." }),
+  });
+  const body = (await res.json().catch(() => ({}))) as { status?: string };
+  if (!res.ok || body.status !== "success") throw new Error(`HTTP ${res.status} ${body.status ?? ""}`.trim());
+}
+
 async function checkDatabase(env: Env): Promise<void> {
   const url = env.DATABASE_URL ?? "";
   const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
@@ -224,6 +267,14 @@ async function main(): Promise<void> {
       })(),
     ],
   ];
+  sanity.push(
+    ["CLIP_MODE is local (transformers.js on CPU)", (env.CLIP_MODE ?? "").trim() === "local"],
+    ["WHISPER_MODE is groq or local", ["groq", "local"].includes((env.WHISPER_MODE ?? "").trim())],
+    ["WHISPER_MODE=groq has GROQ_API_KEY + GROQ_WHISPER_MODEL", (env.WHISPER_MODE ?? "").trim() !== "groq" || (isSet("GROQ_API_KEY") && isSet("GROQ_WHISPER_MODEL"))],
+    ["ELASTIC_URL is https", (env.ELASTIC_URL ?? "").startsWith("https://")],
+    ["Zapier URLs are Catch Hooks", ["ZAPIER_REVIEW_WEBHOOK_URL", "ZAPIER_ALERT_WEBHOOK_URL"].every((k) => (env[k] ?? "").startsWith("https://hooks.zapier.com/hooks/catch/"))],
+    ["ZAPIER_REVIEW and ZAPIER_ALERT are different Zaps", env.ZAPIER_REVIEW_WEBHOOK_URL !== env.ZAPIER_ALERT_WEBHOOK_URL],
+  );
   for (const [name, pass] of sanity) {
     console.log(`  ${pass ? ok("PASS") : bad("FAIL")} ${name}`);
     if (!pass) problems.push(`sanity check failed: ${name}`);
@@ -239,6 +290,12 @@ async function main(): Promise<void> {
   const groqSet = isSet("GROQ_API_KEY") && isSet("GROQ_VISION_MODEL");
   if (groqSet) live.splice(2, 0, ["Groq GROQ_VISION_MODEL fallback (1 call)", ["GROQ_API_KEY", "GROQ_VISION_MODEL"], () => checkGroq(env, env.GROQ_VISION_MODEL!)]);
   else console.log(`  ${dim("SKIP")} Groq fallback ${dim("(GROQ_API_KEY / GROQ_VISION_MODEL not set: a Gemini quota error will send claims to review)")}`);
+  live.push(
+    ["Elastic ping (GET /)", ["ELASTIC_URL", "ELASTIC_API_KEY"], () => checkElastic(env)],
+    ["Kernel auth (list browsers, limit 1)", ["KERNEL_API_KEY"], () => checkKernel(env)],
+  );
+  if (process.argv.includes("--no-zapier")) console.log(`  ${dim("SKIP")} Zapier test POST ${dim("(--no-zapier)")}`);
+  else live.push(["Zapier review Catch Hook (1 test POST)", ["ZAPIER_REVIEW_WEBHOOK_URL"], () => checkZapier(env)]);
   for (const [name, needs, fn] of live) {
     if (!needs.every(isSet)) {
       console.log(`  ${bad("SKIP")} ${name} ${dim("(required key missing)")}`);
@@ -260,7 +317,7 @@ async function main(): Promise<void> {
     for (const p of problems) console.log(`  - ${p}`);
     process.exit(1);
   }
-  console.log(ok("check:env PASSED — Phase 1 can start."));
+  console.log(ok("check:env PASSED — Phase 1 + 2 keys ready."));
 }
 
 main().catch((e) => {

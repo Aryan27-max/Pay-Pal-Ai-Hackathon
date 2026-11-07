@@ -1,20 +1,22 @@
 {
-  "note": "emailIndex points into SIM_CLAIMANT_EMAILS (sandbox personal accounts). Order matters: genuine claims first so later ones get vouching and duplicates are detected.",
+  "note": "emailIndex points into SIM_CLAIMANT_EMAILS (sandbox personal accounts); `email` is a fixed placeholder for fakes that are never paid. Order matters: genuine claims first so later ones get vouching and duplicates are detected. `audio` is a base name in fixtures/audio (any of .m4a .mp3 .wav .ogg .webm); until a clip is recorded the simulator sends `fallbackMessage` as text. `caughtBy` = the check that must stop a fake.",
   "claims": [
     {
       "key": "genuine-1",
       "kind": "genuine",
-      "expect": "APPROVED",
+      "expect": ["APPROVED"],
       "emailIndex": 0,
       "lat": 38.7905,
       "lon": -90.43,
       "photo": "genuine-1.jpg",
-      "message": "Tuesday night the Missouri came over the levee near our street in St. Charles. About two feet of water got into the ground floor and ruined our fridge, mattresses and the kids' clothes. We are sleeping at my sister's place for now and need money for food and to rent a pump."
+      "message": "",
+      "audio": "genuine-1-en",
+      "fallbackMessage": "Tuesday night the Missouri came over the levee near our street in St. Charles. About two feet of water got into the ground floor and ruined our fridge, mattresses and the kids' clothes. We are sleeping at my sister's place for now and need money for food and to rent a pump."
     },
     {
       "key": "genuine-2",
       "kind": "genuine",
-      "expect": "APPROVED",
+      "expect": ["APPROVED"],
       "emailIndex": 1,
       "lat": 38.815,
       "lon": -90.405,
@@ -24,17 +26,19 @@
     {
       "key": "genuine-3",
       "kind": "genuine",
-      "expect": "APPROVED",
+      "expect": ["APPROVED"],
       "emailIndex": 2,
       "lat": 38.77,
       "lon": -90.415,
       "photo": "genuine-3.jpg",
-      "message": "Flood water from the Missouri is still standing in our yard in St. Charles County and the crawl space is full. The power has been out since Wednesday and the furnace was under water. We need help to buy a heater and food until the water goes down."
+      "message": "",
+      "audio": "genuine-3-hi",
+      "fallbackMessage": "Flood water from the Missouri is still standing in our yard in St. Charles County and the crawl space is full. The power has been out since Wednesday and the furnace was under water. We need help to buy a heater and food until the water goes down."
     },
     {
       "key": "borderline-outside-zone",
       "kind": "borderline",
-      "expect": "IN_REVIEW",
+      "expect": ["IN_REVIEW"],
       "emailIndex": 3,
       "lat": 39.09,
       "lon": -90.95,
@@ -44,7 +48,7 @@
     {
       "key": "borderline-no-damage",
       "kind": "borderline",
-      "expect": "IN_REVIEW",
+      "expect": ["IN_REVIEW"],
       "emailIndex": 4,
       "lat": 38.76,
       "lon": -90.69,
@@ -54,7 +58,8 @@
     {
       "key": "fake-reused-photo",
       "kind": "fake",
-      "expect": "REJECTED",
+      "expect": ["REJECTED"],
+      "caughtBy": "uniqueness:photo_hash",
       "emailIndex": 5,
       "lat": 38.795,
       "lon": -90.44,
@@ -64,12 +69,58 @@
     {
       "key": "fake-duplicate-account",
       "kind": "fake",
-      "expect": "REJECTED",
+      "expect": ["REJECTED"],
+      "caughtBy": "uniqueness:paypal_account",
       "emailIndex": 0,
       "lat": 38.8,
       "lon": -90.425,
       "photo": "fake-duplicate-account.jpg",
       "message": "The flood destroyed my things in St. Charles. I need more help, please send another payment."
+    },
+    {
+      "key": "fake-cropped-photo",
+      "kind": "fake",
+      "expect": ["REJECTED"],
+      "caughtBy": "uniqueness:clip_near_duplicate",
+      "email": "sim.fake.cropped@example.com",
+      "lat": 38.785,
+      "lon": -90.45,
+      "photo": "fake-cropped-photo.jpg",
+      "message": "Our street in St. Charles went under water on Tuesday night when the Missouri rose. The ground floor of our house is ruined and we need money for food and cleaning."
+    },
+    {
+      "key": "fake-ai-generated",
+      "kind": "fake",
+      "expect": ["IN_REVIEW", "REJECTED"],
+      "caughtBy": "photo:ai_generated",
+      "email": "sim.fake.aiphoto@example.com",
+      "lat": 38.805,
+      "lon": -90.46,
+      "photo": "fake-ai-generated.jpg",
+      "message": "The Missouri flood filled our whole street in St. Charles. We had to leave by boat and lost everything on the ground floor. Please help us with food and rent."
+    },
+    {
+      "key": "fake-outside-zone",
+      "kind": "fake",
+      "expect": ["REJECTED"],
+      "caughtBy": "location:far_from_event",
+      "email": "sim.fake.outside@example.com",
+      "lat": 39.7392,
+      "lon": -104.9903,
+      "photo": "fake-outside-zone.jpg",
+      "message": "The Missouri River flood in St. Charles put our house under water this week. We need money for food and repairs."
+    },
+    {
+      "key": "fake-contradictory-voice",
+      "kind": "fake",
+      "expect": ["IN_REVIEW", "REJECTED"],
+      "caughtBy": "message:contradicts_event",
+      "email": "sim.fake.voice@example.com",
+      "lat": 38.775,
+      "lon": -90.47,
+      "photo": "fake-contradictory-voice.jpg",
+      "message": "",
+      "audio": "fake-contradictory-voice"
     }
   ]
 }

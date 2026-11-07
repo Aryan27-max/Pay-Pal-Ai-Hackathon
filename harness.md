@@ -89,6 +89,12 @@ Outputs `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md` and `graphify-
 
 - [x] **Phase 1 (Nov 7): core money loop.** Sandbox donations (Orders v2) → claim intake → one AI call per claim (Gemini Flash-Lite, Groq fallback, demo cache) → deterministic scoring → Payouts with FIFO allocation; `/admin`; `npm run sim:demo -- --runs 3` passes 3/3.
   - [ ] Manual PayPal button donation: test on the Render URL (Phase 2, Step 5)
+- [ ] **Phase 2 (Nov 7): fraud-proof verification.** Five parallel checks (GDACS/USGS + SIMULATED event + Kernel, EXIF + CLIP/Elastic near-duplicates, Groq Whisper voice notes, uniqueness, Elastic vouching) → one AI call → deterministic decision; reviewer screen with required reason; Zapier review/ops alerts; Render Workflows tasks with inline fallback. Ticked when the Render run passes.
+  - [x] Local `npm run sim:demo -- --runs 3`: every fake caught by the right check, 3/3 runs
+  - [ ] Deploy on Render (free web service, inline verification) and one `sim:demo` against the Render URL
+  - [ ] PayPal webhook on `<render-url>/api/webhooks/paypal` + `PAYPAL_WEBHOOK_ID`, one real signed webhook verified
+  - [ ] Second Zapier Zap for ops alerts (`ZAPIER_ALERT_WEBHOOK_URL` must differ from the review hook)
+  - [ ] Record the two voice clips (`simulators/fixtures/audio/README.md`)
 - [ ] **Day 1 (Nov 7):** scaffold Next.js + TS + Postgres (Prisma); `lib/paypal` with OAuth token, Orders create/capture, webhook verify; donate button works in sandbox; Postman collection started.
 - [ ] **Day 2 (Nov 8):** claim intake API + claim simulator; `lib/ai` (Gemini), `lib/speech` (Whisper), EXIF reader; disaster feeds (GDACS, USGS); signal scorers.
 - [ ] **Day 3 (Nov 9):** Elastic + CLIP duplicate check and nearby-claims vouching; scoring engine + thresholds; Render Workflows pipeline; Zapier review alert; reviewer screen.

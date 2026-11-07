@@ -4,7 +4,7 @@ import { env } from "@/lib/env";
 import { recordDonation, usd } from "@/lib/ledger";
 import { captureOrder, extractCapture } from "@/lib/paypal/orders";
 import { errorResponse, json } from "@/lib/http";
-import { retryWaitingFunds } from "@/workflows/send-payout";
+import { dispatchRelease } from "@/workflows/dispatch";
 
 export const runtime = "nodejs";
 
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
     if (!cap) return json({ error: "no_capture_in_response", orderStatus: order.status }, 502);
     const saved = await recordDonation(cap, "paypal_button", env().CLAIM_ID_SALT);
     // Pay WAITING_FUNDS claims (oldest first) once this donation lands; runs after the response is sent.
-    if (saved.recorded) after(() => retryWaitingFunds().then(() => undefined, () => undefined));
+    if (saved.recorded) after(() => dispatchRelease().then(() => undefined, () => undefined));
     return json({
       orderId: cap.orderId,
       captureId: cap.captureId,

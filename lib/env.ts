@@ -42,6 +42,30 @@ const EnvSchema = z
     // on | off | empty (= on in development, off in production). See lib/ai/demo-cache.ts.
     AI_DEMO_CACHE: z.enum(["on", "off", ""]).optional().default(""),
 
+    // ---- Phase 2 (all optional here so unit tests and local runs need no cloud keys; check:env enforces them) ----
+    WHISPER_MODE: z.enum(["groq", "local"]).optional().default("groq"),
+    GROQ_WHISPER_MODEL: z.string().optional().default("whisper-large-v3-turbo"),
+    WHISPER_LOCAL_MODEL: z.string().optional().default("base"),
+    CLIP_MODE: z.literal("local").optional().default("local"),
+    CLIP_MODEL_ID: z.string().optional().default("Xenova/clip-vit-base-patch32"),
+    ELASTIC_URL: z.string().optional().default(""),
+    ELASTIC_API_KEY: z.string().optional().default(""),
+    ELASTIC_CLAIMS_INDEX: z.string().optional().default("relief-claims"),
+    ELASTIC_PHOTOS_INDEX: z.string().optional().default("relief-photos"),
+    GDACS_FEED_URL: z.string().optional().default("https://www.gdacs.org/gdacsapi/api/Events/geteventlist/search?eventlist=FL;TC;EQ;WF;VO"),
+    USGS_FEED_URL: z.string().optional().default("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson"),
+    // on | off | empty (= on). The clearly labelled SIMULATED demo event (simulators/fixtures/flood-zone.json).
+    SIMULATED_EVENT: z.enum(["on", "off", ""]).optional().default(""),
+    KERNEL_API_KEY: z.string().optional().default(""),
+    // on | off | empty (= on when KERNEL_API_KEY is set). Optional alert-page corroboration.
+    KERNEL_CHECK: z.enum(["on", "off", ""]).optional().default(""),
+    ZAPIER_REVIEW_WEBHOOK_URL: z.string().optional().default(""),
+    ZAPIER_ALERT_WEBHOOK_URL: z.string().optional().default(""),
+    POOL_LOW_USD: num.min(0).optional().default(100),
+    RENDER_API_KEY: z.string().optional().default(""),
+    RENDER_WORKFLOW_SERVICE_ID: z.string().optional().default(""),
+    RENDER_WORKFLOW_SLUG: z.string().optional().default(""),
+
     SIM_DONOR_EMAILS: z.string().optional().default(""),
     SIM_CLAIMANT_EMAILS: z.string().optional().default(""),
   })

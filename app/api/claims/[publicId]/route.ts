@@ -1,15 +1,25 @@
 import { db } from "@/lib/db";
 import { redactClaim } from "@/lib/privacy";
-import { errorResponse, json } from "@/lib/http";
+import { claimReport } from "@/lib/claims/report";
+import { errorResponse, json, reviewerToken, unauthorized } from "@/lib/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/claims/:publicId — public, redacted status. No email, no exact GPS, no message. */
-export async function GET(_req: Request, ctx: { params: Promise<{ publicId: string }> }) {
+/**
+ * GET /api/claims/:publicId — public, redacted status. No email, no exact GPS, no message.
+ * GET /api/claims/:publicId?detail=1 — operator/reviewer report (signals, evidence details, decision,
+ * payout ids). Requires the reviewer token. Still no email, GPS, message, transcript or replay URL.
+ */
+export async function GET(req: Request, ctx: { params: Promise<{ publicId: string }> }) {
   try {
     const { publicId } = await ctx.params;
     if (!/^c_[0-9a-f]{20}$/.test(publicId)) return json({ error: "not_found" }, 404);
+    if (new URL(req.url).searchParams.get("detail") === "1") {
+      if (!reviewerToken(req)) return unauthorized();
+      const report = await claimReport({ claimPublicId: publicId });
+      return report ? json(report) : json({ error: "not_found" }, 404);
+    }
     const c = await db.claim.findUnique({
       where: { claimPublicId: publicId },
       include: {
