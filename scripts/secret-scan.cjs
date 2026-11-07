@@ -17,7 +17,7 @@ const env = fs.existsSync(".env")
     )
   : {};
 
-const SECRETISH = /KEY|SECRET|SALT|TOKEN|PASSWORD|DATABASE_URL|WEBHOOK_URL|CLIENT_ID|ELASTIC_URL|POOL_BUSINESS_EMAIL|WEBHOOK_ID/;
+const SECRETISH = /KEY|SECRET|SALT|TOKEN|PASSWORD|DATABASE_URL|WEBHOOK_URL|CLIENT_ID|ELASTIC_URL|CLOUD_URL|POOL_BUSINESS_EMAIL|WEBHOOK_ID/;
 const values = Object.entries(env).filter(([k, v]) => v.length >= 12 && SECRETISH.test(k) && !/localhost|127\.0\.0\.1/.test(v));
 for (const k of ["SIM_DONOR_EMAILS", "SIM_CLAIMANT_EMAILS"]) for (const e of (env[k] || "").split(",").map((s) => s.trim()).filter(Boolean)) values.push([`${k}[item]`, e]);
 try {

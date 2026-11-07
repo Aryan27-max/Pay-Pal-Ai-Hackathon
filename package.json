@@ -24,7 +24,13 @@
     "clip:tune": "tsx scripts/tune-clip.ts",
     "disasters:live": "tsx scripts/disasters-live.ts",
     "alerts:test": "tsx scripts/alerts-test.ts",
-    "secret-scan": "node scripts/secret-scan.cjs"
+    "secret-scan": "node scripts/secret-scan.cjs",
+    "setup": "npm install && node scripts/setup.mjs",
+    "seed": "tsx scripts/seed.ts",
+    "dev:local": "node scripts/dev-local.mjs",
+    "demo": "tsx simulators/demo.ts",
+    "tunnel": "node scripts/tunnel.mjs",
+    "stack:down": "docker compose down"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.5.1",
@@ -53,8 +59,10 @@
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "cloudflared": "^0.7.3",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.5",
+    "newman": "^6.2.3",
     "postcss": "^8.5.32",
     "prisma": "7.10.1",
     "tailwindcss": "^4.3.5",

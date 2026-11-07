@@ -1,0 +1,46 @@
+# Local stack for Relief Stream (free, no accounts): Postgres + single-node Elasticsearch.
+#   npm run setup       → starts this, migrates, creates the indices, downloads the CLIP model, seeds
+#   npm run dev:local   → starts this (if needed) and the Next.js dev server
+#   docker compose down       stop (data kept in the named volumes)
+#   docker compose down -v    stop and delete all local data
+# Elastic Cloud instead of the local Elasticsearch: set ELASTIC_URL (https) + ELASTIC_API_KEY in .env.
+name: relief-stream
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: relief
+      POSTGRES_PASSWORD: relief # local-only container, not reachable from outside this machine
+      POSTGRES_DB: relief
+    ports:
+      - "127.0.0.1:5433:5432" # 5433 so it never clashes with a Postgres you may already run on 5432
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relief -d relief"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false # local only (bound to 127.0.0.1); the free Basic license covers kNN + geo
+      - xpack.ml.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - cluster.routing.allocation.disk.threshold_enabled=false
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=2s || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+
+volumes:
+  pgdata:
+  esdata:
