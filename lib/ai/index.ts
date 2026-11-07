@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { classifyAiError, describeAiError, parseAssessment, type AiAssessment } from "./contract";
 import { callGemini, callGroq, type ProviderCall, type ProviderName } from "./providers";
 import { cacheKey, dbCache, messageSha256, type AssessmentCache } from "./demo-cache";
+import { budgetExhaustedMessage, dbBudget, type BudgetGuard } from "./budget";
 
 /**
  * The ONLY entry point for LLM / vision calls (hard rule 7). The AI returns signal inputs and
@@ -100,6 +101,8 @@ export type AssessOptions = {
   /** Injection points for tests. */
   providers?: ProviderSpec[];
   cache?: AssessmentCache;
+  /** Daily call budget per provider (lib/ai/budget.ts). Every real call is reserved first. */
+  budget?: BudgetGuard;
 };
 
 export function defaultProviders(): ProviderSpec[] {
@@ -113,11 +116,19 @@ export function defaultProviders(): ProviderSpec[] {
 type Attempt = { ok: true; assessment: AiAssessment } | { ok: false; error: string };
 
 /** One provider with the existing policy: bad output gets one retry; 503 / short 429 back off; daily quota stops. */
-async function runProvider(p: ProviderSpec, req: Parameters<ProviderCall>[0], o: Required<Pick<AssessOptions, "maxAttempts" | "maxTransientRetries" | "backoffMs">>, calls: AiCalls): Promise<Attempt> {
+async function runProvider(
+  p: ProviderSpec,
+  req: Parameters<ProviderCall>[0],
+  o: Required<Pick<AssessOptions, "maxAttempts" | "maxTransientRetries" | "backoffMs">>,
+  calls: AiCalls,
+  budget: BudgetGuard,
+): Promise<Attempt> {
   let bad = 0;
   let transient = 0;
   let lastError = "unknown";
   while (bad < o.maxAttempts) {
+    // Cost guard: no call is made once today's budget for this provider is used up.
+    if (!(await budget.reserve(p.name))) return { ok: false, error: budgetExhaustedMessage(p.name) };
     calls[p.name]++;
     try {
       const parsed = parseAssessment(await p.call(req));
@@ -146,6 +157,7 @@ export async function assessClaim(e: ClaimEvidence, opts: AssessOptions = {}): P
   const providers = opts.providers ?? defaultProviders();
   const cache = opts.cache ?? dbCache;
   const o = { maxAttempts: opts.maxAttempts ?? 2, maxTransientRetries: opts.maxTransientRetries ?? 3, backoffMs: opts.backoffMs ?? 3_000 };
+  const budget = opts.budget ?? dbBudget;
   const calls: AiCalls = { gemini: 0, groq: 0 };
 
   const photoSha = createHash("sha256").update(e.photo.bytes).digest("hex");
@@ -167,7 +179,7 @@ export async function assessClaim(e: ClaimEvidence, opts: AssessOptions = {}): P
       errors.push(`${p.name}: not configured`);
       continue;
     }
-    const r = await runProvider(p, { ...req, model: p.model }, o, calls);
+    const r = await runProvider(p, { ...req, model: p.model }, o, calls, budget);
     if (r.ok) {
       if (opts.useCache) {
         await cache

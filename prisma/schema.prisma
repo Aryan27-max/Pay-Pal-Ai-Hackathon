@@ -165,3 +165,15 @@ model AlertSent {
 
   @@map("alert_sent")
 }
+
+// AI cost guard: calls per provider per UTC day (gemini | groq; Groq counts vision + Whisper together).
+// A call is reserved atomically BEFORE it is made, so the daily budget can never be overshot.
+model AiUsage {
+  day       String // YYYY-MM-DD (UTC)
+  provider  String
+  calls     Int      @default(0)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([day, provider])
+  @@map("ai_usage")
+}

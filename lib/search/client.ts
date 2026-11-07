@@ -9,15 +9,15 @@ import { CLIP_DIMS } from "@/lib/vision/clip";
  */
 let client: Client | undefined;
 
+/** On when ELASTIC_URL is set: local Docker Elasticsearch needs no key; Elastic Cloud also needs ELASTIC_API_KEY. */
 export function elasticConfigured(): boolean {
-  const e = env();
-  return Boolean(e.ELASTIC_URL && e.ELASTIC_API_KEY);
+  return Boolean(env().ELASTIC_URL);
 }
 
 export function es(): Client {
-  if (!elasticConfigured()) throw new Error("Elastic is not configured (ELASTIC_URL / ELASTIC_API_KEY)");
+  if (!elasticConfigured()) throw new Error("disabled: no key (ELASTIC_URL)");
   const e = env();
-  client ??= new Client({ node: e.ELASTIC_URL, auth: { apiKey: e.ELASTIC_API_KEY }, requestTimeout: 15_000, maxRetries: 2 });
+  client ??= new Client({ node: e.ELASTIC_URL, ...(e.ELASTIC_API_KEY ? { auth: { apiKey: e.ELASTIC_API_KEY } } : {}), requestTimeout: 15_000, maxRetries: 2 });
   return client;
 }
 

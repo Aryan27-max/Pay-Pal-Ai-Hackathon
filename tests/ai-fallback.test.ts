@@ -41,7 +41,14 @@ function providers(gemini: ProviderCall, groq: ProviderCall, groqConfigured = tr
     { name: "groq" as const, model: "groq-vision-test", call: vi.fn(groq), configured: groqConfigured },
   ];
 }
-const fast = { backoffMs: 1 };
+const unlimited = { reserve: async () => true };
+const fast = { backoffMs: 1, budget: unlimited };
+
+/** In-memory budget: n calls per provider. */
+function capped(n: Record<"gemini" | "groq", number>) {
+  const used = { gemini: 0, groq: 0 };
+  return { used, reserve: async (p: "gemini" | "groq") => (used[p] < n[p] ? (used[p]++, true) : false) };
+}
 
 describe("assessClaim: one call per claim, Gemini first", () => {
   it("a healthy Gemini answers with exactly one call and Groq is never touched", async () => {
@@ -144,6 +151,40 @@ describe("assessClaim: demo cache", () => {
     expect(demoCacheEnabled(undefined, "production")).toBe(false);
     expect(demoCacheEnabled("off", "development")).toBe(false);
     expect(demoCacheEnabled("on", "production")).toBe(true);
+  });
+});
+
+describe("assessClaim: daily call budget (cost guard)", () => {
+  it("at the Gemini budget no Gemini call is made and Groq answers", async () => {
+    const p = providers(async () => GOOD, async () => GOOD);
+    const budget = capped({ gemini: 0, groq: 5 });
+    const r = await assessClaim(evidence, { providers: p, cache: memCache(), backoffMs: 1, budget });
+    expect(r).toMatchObject({ ok: true, provider: "groq", calls: { gemini: 0, groq: 1 } });
+    expect(p[0]!.call).not.toHaveBeenCalled();
+  });
+  it("both budgets used up → ok:false with a clear reason, zero calls", async () => {
+    const p = providers(async () => GOOD, async () => GOOD);
+    const r = await assessClaim(evidence, { providers: p, cache: memCache(), backoffMs: 1, budget: capped({ gemini: 0, groq: 0 }) });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toMatch(/gemini .*daily call budget reached/);
+      expect(r.error).toMatch(/groq .*daily call budget reached/);
+      expect(r.calls).toEqual({ gemini: 0, groq: 0 });
+    }
+  });
+  it("a retry also needs budget: the budget is never overshot", async () => {
+    const budget = capped({ gemini: 1, groq: 0 });
+    const p = providers(async () => "not json", async () => GOOD);
+    await assessClaim(evidence, { providers: p, cache: memCache(), backoffMs: 1, budget });
+    expect(budget.used.gemini).toBe(1);
+    expect(p[0]!.call).toHaveBeenCalledTimes(1);
+  });
+  it("defaults are 400 (Gemini) and 800 (Groq); env overrides", async () => {
+    const { dailyBudget } = await import("@/lib/ai/budget");
+    expect(dailyBudget("gemini", {})).toBe(400);
+    expect(dailyBudget("groq", {})).toBe(800);
+    expect(dailyBudget("gemini", { AI_DAILY_CALL_BUDGET_GEMINI: "25" })).toBe(25);
+    expect(dailyBudget("groq", { AI_DAILY_CALL_BUDGET_GROQ: "nonsense" })).toBe(800);
   });
 });
 

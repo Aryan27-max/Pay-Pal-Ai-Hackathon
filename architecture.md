@@ -1,4 +1,17 @@
-# architecture.md — Relief Stream system design
+#**Running with only the core keys (graceful degradation).** The core is PayPal sandbox, Gemini and Postgres. Every other service switches off cleanly: `check:env -- --core` shows it as SKIP, `/admin` shows "disabled: no key", nothing crashes. Rule: a service that is **not configured** is skipped and the score uses what is left; a service that **is configured but failing** (e.g. Elasticsearch down) blocks auto-payout, because the operator expected that check to run. Source of truth: `lib/services.ts`.
+
+| Service | Keys | When it is off |
+| --- | --- | --- |
+| Groq (vision fallback + Whisper) | `GROQ_API_KEY`, `GROQ_VISION_MODEL`, `GROQ_WHISPER_MODEL` | No AI fallback: if Gemini fails or hits its daily budget the claim goes to IN_REVIEW (never auto-paid, never auto-rejected). Voice notes can't be transcribed: typed text still scores; a voice-only claim gets message 0 and goes to review. |
+| Elasticsearch (CLIP near-duplicates, vouching) | `ELASTIC_URL` | CLIP near-duplicate search is off; the perceptual hash in Postgres still catches resized / re-compressed / brightened copies, but a heavy crop may pass. Vouching uses a Postgres distance query instead. Scores are otherwise unchanged. |
+| Kernel (official alert page) | `KERNEL_API_KEY` | Location uses the GDACS/USGS feeds (and the SIMULATED event) only. Kernel can only raise location, so no claim scores lower than it should. |
+| Zapier (review + ops alerts) | `ZAPIER_REVIEW_WEBHOOK_URL`, `ZAPIER_ALERT_WEBHOOK_URL` | No Slack/email alerts. Reviewers use the /review queue; ops problems (pool low, payout failed, AI down) still show on /admin. Scoring unchanged. |
+| PayPal webhook signature (PAYPAL_WEBHOOK_ID) | `PAYPAL_WEBHOOK_ID` | Webhooks are not signature-verified; the app re-fetches each event's resource from PayPal before acting. Payout polling still settles payouts. |
+| Solana devnet trail (test PYUSD + Memo) | `SOLANA_RPC_URL`, `SOLANA_TRAIL_WALLET_SECRET_KEY`, `PYUSD_DEVNET_MINT`, `SOLANA_EXPLORER_BASE` | No public on-chain record. Decisions and payouts are unaffected; dashboard and receipts show 'trail disabled' instead of explorer links. |
+| Astropods (agent monitoring) | `ASTROPODS_API_KEY` | Verification runs without Astropods traces. Scoring unchanged. |
+| AI cost guard | `AI_DAILY_CALL_BUDGET_GEMINI` (400), `AI_DAILY_CALL_BUDGET_GROQ` (800) | Calls per provider per UTC day are counted in Postgres (`ai_usage`) and reserved atomically before each call. At the budget the provider is skipped (fallback to the other); with none left the claim goes to IN_REVIEW with the reason. Whisper counts against the Groq budget. |
+
+ architecture.md — Relief Stream system design
 
 **This file is a harness.** It is the single source of truth for how Relief Stream is built. Before writing code, check that the change fits this design. If the design must change, update this file (and its diagrams) in the same change. Read it together with `harness.md`, `CLAUDE.md` and `SKILL.md`.
 

@@ -5,7 +5,8 @@ import { locate } from "@/lib/disasters/geo";
 import { corroborateAlert, type KernelCheck } from "@/lib/disasters/kernel";
 import type { DisasterContext } from "@/lib/ai";
 import { elasticConfigured } from "@/lib/search/client";
-import { countVouchers } from "@/lib/search/claims";
+import { countVouchers, VOUCH_STATUSES } from "@/lib/search/claims";
+import { haversineKm } from "@/lib/privacy";
 import { indexPhoto, nearestPhoto } from "@/lib/search/photos";
 import { transcribe } from "@/lib/speech";
 import { CLIP_DUPLICATE_THRESHOLD } from "@/lib/scoring";
@@ -73,6 +74,9 @@ export type PhotoResult = {
   nearest: { claimPublicId: string; cosine: number } | null;
   nearDuplicate: boolean;
   threshold: number;
+  /** CLIP + Elastic: on | disabled (no ELASTIC_URL: not an error) | error (configured but failing). */
+  clip: "on" | "disabled" | "error";
+  /** True only when a CONFIGURED check failed: then the claim is never auto-paid. Disabled is not unavailable. */
   unavailable: boolean;
   error?: string;
 };
@@ -80,18 +84,18 @@ export type PhotoResult = {
 export async function checkPhotoStep(claimId: string): Promise<PhotoResult> {
   const c = await loadClaim(claimId);
   const ev = await getEvidence(claimId, "photo");
-  if (!ev) return { exif: { present: false }, nearest: null, nearDuplicate: false, threshold: CLIP_DUPLICATE_THRESHOLD, unavailable: true, error: "evidence already deleted" };
+  if (!ev) return { exif: { present: false }, nearest: null, nearDuplicate: false, threshold: CLIP_DUPLICATE_THRESHOLD, clip: "error", unavailable: true, error: "evidence already deleted" };
   const bytes = ev.photo;
   const exif = await readExif(bytes);
   const exifJson = { present: exif.present, ...(exif.takenAt ? { takenAt: exif.takenAt.toISOString() } : {}), ...(exif.gps ? { gps: exif.gps } : {}) };
-  if (!elasticConfigured()) return { exif: exifJson, nearest: null, nearDuplicate: false, threshold: CLIP_DUPLICATE_THRESHOLD, unavailable: true, error: "Elastic not configured" };
+  if (!elasticConfigured()) return { exif: exifJson, nearest: null, nearDuplicate: false, threshold: CLIP_DUPLICATE_THRESHOLD, clip: "disabled", unavailable: false, error: "disabled: no key (ELASTIC_URL)" };
   try {
     const vec = await embedImage(bytes);
     const nearest = await nearestPhoto(vec, c.claimPublicId);
     await indexPhoto(c.claimPublicId, vec);
-    return { exif: exifJson, nearest, nearDuplicate: Boolean(nearest && nearest.cosine >= CLIP_DUPLICATE_THRESHOLD), threshold: CLIP_DUPLICATE_THRESHOLD, unavailable: false };
+    return { exif: exifJson, nearest, nearDuplicate: Boolean(nearest && nearest.cosine >= CLIP_DUPLICATE_THRESHOLD), threshold: CLIP_DUPLICATE_THRESHOLD, clip: "on", unavailable: false };
   } catch (e) {
-    return { exif: exifJson, nearest: null, nearDuplicate: false, threshold: CLIP_DUPLICATE_THRESHOLD, unavailable: true, error: errText(e) };
+    return { exif: exifJson, nearest: null, nearDuplicate: false, threshold: CLIP_DUPLICATE_THRESHOLD, clip: "error", unavailable: true, error: errText(e) };
   }
 }
 
@@ -126,7 +130,7 @@ export async function checkUniquenessStep(claimId: string): Promise<UniquenessRe
 }
 
 /* 5. Vouching: approved, non-duplicate claims of the same event within 10 km (Elastic geo query). */
-export type VouchingResult = { eventId: string | null; nearbyVerified: number; radiusKm: number; unavailable: boolean; error?: string };
+export type VouchingResult = { eventId: string | null; nearbyVerified: number; radiusKm: number; source: "elastic" | "postgres"; unavailable: boolean; error?: string };
 
 export async function checkVouchingStep(claimId: string): Promise<VouchingResult> {
   const c = await loadClaim(claimId);
@@ -134,13 +138,34 @@ export async function checkVouchingStep(claimId: string): Promise<VouchingResult
     const { events } = await activeEvents({ lat: c.lat, lon: c.lon });
     const loc = locate({ lat: c.lat, lon: c.lon }, events);
     const eventId = loc.event && !loc.far ? loc.event.id : null;
-    if (!eventId) return { eventId: null, nearbyVerified: 0, radiusKm: VOUCH_RADIUS_KM, unavailable: false };
-    if (!elasticConfigured()) return { eventId, nearbyVerified: 0, radiusKm: VOUCH_RADIUS_KM, unavailable: true, error: "Elastic not configured" };
+    if (!eventId) return { eventId: null, nearbyVerified: 0, radiusKm: VOUCH_RADIUS_KM, source: elasticConfigured() ? "elastic" : "postgres", unavailable: false };
+    if (!elasticConfigured()) {
+      // Elastic disabled: same rule from Postgres (approved, non-duplicate, same event, within 10 km).
+      const n = await countVouchersPostgres({ id: c.id, lat: c.lat, lon: c.lon, eventId });
+      return { eventId, nearbyVerified: n, radiusKm: VOUCH_RADIUS_KM, source: "postgres", unavailable: false };
+    }
     const n = await countVouchers({ claimPublicId: c.claimPublicId, lat: c.lat, lon: c.lon, eventId, radiusKm: VOUCH_RADIUS_KM });
-    return { eventId, nearbyVerified: n, radiusKm: VOUCH_RADIUS_KM, unavailable: false };
+    return { eventId, nearbyVerified: n, radiusKm: VOUCH_RADIUS_KM, source: "elastic", unavailable: false };
   } catch (e) {
-    return { eventId: null, nearbyVerified: 0, radiusKm: VOUCH_RADIUS_KM, unavailable: true, error: errText(e) };
+    return { eventId: null, nearbyVerified: 0, radiusKm: VOUCH_RADIUS_KM, source: elasticConfigured() ? "elastic" : "postgres", unavailable: true, error: errText(e) };
   }
+}
+
+/** Postgres fallback for vouching (Elastic disabled): bounding box in SQL, exact distance in code. */
+async function countVouchersPostgres(c: { id: string; lat: number; lon: number; eventId: string }): Promise<number> {
+  const dLat = VOUCH_RADIUS_KM / 111;
+  const dLon = VOUCH_RADIUS_KM / (111 * Math.max(0.1, Math.cos((c.lat * Math.PI) / 180)));
+  const rows = await db.claim.findMany({
+    where: {
+      id: { not: c.id },
+      disasterEventId: c.eventId,
+      status: { in: [...VOUCH_STATUSES] },
+      lat: { gte: c.lat - dLat, lte: c.lat + dLat },
+      lon: { gte: c.lon - dLon, lte: c.lon + dLon },
+    },
+    select: { lat: true, lon: true },
+  });
+  return rows.filter((r) => haversineKm(r, c) <= VOUCH_RADIUS_KM).length;
 }
 
 export type CheckResults = { location: LocationResult; photo: PhotoResult; message: MessageResult; uniqueness: UniquenessResult; vouching: VouchingResult };

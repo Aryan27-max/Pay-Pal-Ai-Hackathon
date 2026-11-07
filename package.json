@@ -23,7 +23,8 @@
     "clip:prefetch": "tsx scripts/clip-prefetch.ts",
     "clip:tune": "tsx scripts/tune-clip.ts",
     "disasters:live": "tsx scripts/disasters-live.ts",
-    "alerts:test": "tsx scripts/alerts-test.ts"
+    "alerts:test": "tsx scripts/alerts-test.ts",
+    "secret-scan": "node scripts/secret-scan.cjs"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.5.1",
@@ -34,6 +35,9 @@
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "@renderinc/sdk": "^1.8.0",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.99.0",
+    "bs58": "^6.0.0",
     "dotenv": "^18.0.9",
     "exifr": "^7.1.3",
     "next": "^16.4.5",

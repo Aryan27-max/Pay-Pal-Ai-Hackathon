@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { poolSummary, usd } from "@/lib/ledger";
+import { usageToday } from "@/lib/ai/budget";
+import { serviceStatuses } from "@/lib/services";
 
 export const dynamic = "force-dynamic";
 
@@ -8,8 +10,10 @@ export const dynamic = "force-dynamic";
  * Anonymous ids only (no emails, no exact GPS, no messages). AG Grid version comes in Phase 3.
  */
 export default async function AdminPage() {
-  const [summary, donations, claims, decisions, payouts] = await Promise.all([
+  const services = serviceStatuses(process.env);
+  const [summary, aiUsage, donations, claims, decisions, payouts] = await Promise.all([
     poolSummary(),
+    usageToday(),
     db.donation.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
     db.claim.findMany({ orderBy: { createdAt: "desc" }, take: 50 }),
     db.decision.findMany({ orderBy: { createdAt: "desc" }, take: 80, include: { claim: { select: { claimPublicId: true } } } }),
@@ -28,6 +32,45 @@ export default async function AdminPage() {
         <Stat label="Available in pool" value={`$${usd(summary.availableCents)}`} />
         <Stat label="Donations" value={String(summary.donations)} />
       </div>
+
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">AI calls today (UTC) vs budget</h2>
+          {aiUsage.map((u) => {
+            const pct = Math.min(100, Math.round((u.calls / u.budget) * 100));
+            return (
+              <div key={u.provider} className="mb-3">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">{u.provider === "groq" ? "Groq (vision + Whisper)" : "Gemini"}</span>
+                  <span className={u.calls >= u.budget ? "font-semibold text-red-700" : "text-slate-600"}>
+                    {u.calls} / {u.budget}
+                  </span>
+                </div>
+                <div className="mt-1 h-2 rounded bg-slate-100">
+                  <div className={`h-2 rounded ${pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
+          <p className="text-xs text-slate-500">At the budget the app stops calling that provider: it falls back, then sends claims to review. Set AI_DAILY_CALL_BUDGET_GEMINI / _GROQ.</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 bg-white p-4 lg:col-span-2">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Optional services</h2>
+          <ul className="space-y-1.5 text-sm">
+            {services.map((sv) => (
+              <li key={sv.id} className="flex gap-2">
+                <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${sv.enabled ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                  {sv.enabled ? "on" : "disabled: no key"}
+                </span>
+                <span>
+                  <span className="font-medium">{sv.name}</span>
+                  {!sv.enabled && <span className="text-slate-500"> — {sv.whenOff}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
 
       <Table
         title="Claims"

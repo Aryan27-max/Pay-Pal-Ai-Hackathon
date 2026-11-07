@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { env } from "@/lib/env";
+import { budgetExhaustedMessage, dbBudget } from "@/lib/ai/budget";
 
 /**
  * Voice note → text + language (see .claude/skills/speech-whisper/SKILL.md).
@@ -45,7 +46,9 @@ const extFor = (mime: string) => (/wav/.test(mime) ? "wav" : /mpeg|mp3/.test(mim
 
 async function transcribeGroq(bytes: Uint8Array, mime: string): Promise<Transcript> {
   const e = env();
-  if (!e.GROQ_API_KEY) throw new Error("GROQ_API_KEY is not set");
+  if (!e.GROQ_API_KEY) throw new Error("disabled: no key (GROQ_API_KEY): voice note not transcribed");
+  // Whisper counts against the Groq daily budget (lib/ai/budget.ts).
+  if (!(await dbBudget.reserve("groq"))) throw new Error(`groq whisper: ${budgetExhaustedMessage("groq")}`);
   const form = new FormData();
   form.set("file", new Blob([Buffer.from(bytes)], { type: mime }), `voice.${extFor(mime)}`);
   form.set("model", e.GROQ_WHISPER_MODEL);
