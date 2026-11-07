@@ -87,14 +87,14 @@ Outputs `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md` and `graphify-
 ## 8. Build plan (Nov 7 → Nov 12)
 
 - [x] **Phase 1 (Nov 7): core money loop.** Sandbox donations (Orders v2) → claim intake → one AI call per claim (Gemini Flash-Lite, Groq fallback, demo cache) → deterministic scoring → Payouts with FIFO allocation; `/admin`; `npm run sim:demo -- --runs 3` passes 3/3.
-  - [ ] Manual PayPal button donation: test on the Render URL (Phase 2, Step 5)
+  - [ ] Manual PayPal button donation: through the tunnel (see Phase 2)
 - [x] **Phase 2 (Nov 7): fraud-proof verification** — five parallel checks → one AI call → deterministic decision; reviewer screen; Zapier alerts. Plan changed to zero-cost, local first (Docker), so "deploy" moved to the end.
   - [x] Local `npm run demo -- --runs 3` (cache on) + 1 live run (cache off): every fake caught by the right check, 4/4 runs
   - [x] Recovery sweep, dHash + multi-crop near-duplicates, race lock (`npm run check:robustness`), reviewer e2e (`npm run test:e2e`)
   - [x] Guards: check:env per phase (`--core` for judges), AI daily budget, graceful degradation
   - [ ] PayPal webhook via `npm run tunnel` + `PAYPAL_WEBHOOK_ID`, one real signed webhook verified
   - [ ] Manual PayPal button donation (US donor) through the tunnel
-  - [ ] Confirm both Zapier test emails arrived (alerts:test review + ops sent OK)
+  - [x] Confirm both Zapier test emails arrived (alerts:test review + ops sent OK; arrival confirmed by the user, Nov 8)
   - [ ] Record the two voice clips (`simulators/fixtures/audio/README.md`)
 - [ ] **Phase 3: public trail + transparency (local, free)**
   - [x] Solana trail queue + worker (Token-2022 test PYUSD + Memo), on every donation/decision/payout
@@ -103,7 +103,14 @@ Outputs `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md` and `graphify-
   - [x] Postman via Newman (`npm run test:api`, 40/40), judge-ready README
   - [ ] PayPal Agent Toolkit: skipped (no payouts tool; direct tool calls undocumented)
   - [x] Deploy prep: peak 416 MB on the production server (CLIP q4 + lean ONNX + 192 MB heap cap; was 538 MB), all fakes still caught; plan = Render free web + Neon free Postgres
-  - [ ] Deploy: waits for your go-ahead
+  - [ ] Deploy: not for the submission (decision Nov 8). We submit with local run instructions; `render.yaml` kept, README → Deployment (optional)
+- [x] **Submission readiness (Nov 8)**
+  - [x] `npm run demo -- --runs 3` 3/3 (cache on); 1 live run on `next start` (cache off: 7 Gemini calls, 30/400 today)
+  - [x] 127 unit tests, typecheck, `test:e2e`, Newman 22/22 requests · 40/40 assertions, `check:robustness`
+  - [x] `next build && next start`: /stream, /dashboard, /receipt, /review load (200)
+  - [x] Fresh-clone judge test from GitHub with core keys only: `setup` → `check:env -- --core` → `dev:local` → `demo` 1/1 (fixed: first `setup` now stops with the key list and generates the salt + reviewer token)
+  - [x] Secret scan of all tracked files and full git history: 0 secret values; `.env` never committed
+  - [x] README final: problem, solution, 5-line architecture, Run in 10 minutes, sandbox setup, AI + sponsor tools, zero-cost design, Deployment (optional), known limits, LICENSE
 - [ ] **Day 1 (Nov 7):** scaffold Next.js + TS + Postgres (Prisma); `lib/paypal` with OAuth token, Orders create/capture, webhook verify; donate button works in sandbox; Postman collection started.
 - [ ] **Day 2 (Nov 8):** claim intake API + claim simulator; `lib/ai` (Gemini), `lib/speech` (Whisper), EXIF reader; disaster feeds (GDACS, USGS); signal scorers.
 - [ ] **Day 3 (Nov 9):** Elastic + CLIP duplicate check and nearby-claims vouching; scoring engine + thresholds; Render Workflows pipeline; Zapier review alert; reviewer screen.
