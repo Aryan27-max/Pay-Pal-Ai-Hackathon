@@ -1,0 +1,588 @@
+{
+  "info": {
+    "name": "Relief Stream",
+    "description": "Relief Stream API (PayPal sandbox only). Set the environment variables in postman/relief-stream.local.postman_environment.json — never commit secrets.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "PayPal (sandbox)",
+      "item": [
+        {
+          "name": "OAuth token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();pm.test(\"has token\",()=>pm.expect(j.access_token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"paypalAccessToken\", j.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "url": "{{paypalBase}}/v1/oauth2/token",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{paypalClientId}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{paypalClientSecret}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create order (donation)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201\",()=>pm.response.to.have.status(201));",
+                  "const j=pm.response.json();pm.test(\"CREATED\",()=>pm.expect(j.status).to.eql(\"CREATED\"));",
+                  "pm.collectionVariables.set(\"orderId\", j.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "PayPal-Request-Id",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": "{{paypalBase}}/v2/checkout/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{paypalAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intent\": \"CAPTURE\",\n  \"purchase_units\": [\n    {\n      \"amount\": {\n        \"currency_code\": \"USD\",\n        \"value\": \"10.00\"\n      },\n      \"description\": \"Relief Stream donation to the relief pool\",\n      \"custom_id\": \"main\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{paypalBase}}/v2/checkout/orders/{{orderId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{paypalAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get payout batch",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();pm.test(\"batch status enum\",()=>pm.expect([\"DENIED\",\"PENDING\",\"PROCESSING\",\"SUCCESS\",\"CANCELED\"]).to.include(j.batch_header.batch_status));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{paypalBase}}/v1/payments/payouts/{{payoutBatchId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{paypalAccessToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Internal API",
+      "item": [
+        {
+          "name": "Pool totals",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();pm.test(\"amounts are strings\",()=>pm.expect(j.availableUsd).to.match(/^-?d+.d{2}$/));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/pool"
+          }
+        },
+        {
+          "name": "Create donation order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"orderId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/donations/create-order",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amountUsd\": 10,\n  \"streamId\": \"main\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Capture donation (after buyer approval)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 or PayPal 502 if not approved\",()=>pm.expect([200,502]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/donations/capture",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Submit claim (multipart)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201\",()=>pm.response.to.have.status(201));",
+                  "const j=pm.response.json();pm.test(\"engine outcome\",()=>pm.expect([\"APPROVED\",\"IN_REVIEW\",\"REJECTED\"]).to.include(j.outcome));",
+                  "pm.collectionVariables.set(\"claimPublicId\", j.claimPublicId);",
+                  "if(j.payout&&j.payout.payoutBatchId) pm.collectionVariables.set(\"payoutBatchId\", j.payout.payoutBatchId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/claims",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "lat",
+                  "value": "38.7905",
+                  "type": "text"
+                },
+                {
+                  "key": "lon",
+                  "value": "-90.43",
+                  "type": "text"
+                },
+                {
+                  "key": "message",
+                  "value": "Tuesday night the river came over the levee near our street in St. Charles and flooded our ground floor.",
+                  "type": "text"
+                },
+                {
+                  "key": "paypal_email",
+                  "value": "{{claimantEmail}}",
+                  "type": "text"
+                },
+                {
+                  "key": "photo",
+                  "type": "file",
+                  "src": "simulators/fixtures/photos/genuine-1.jpg"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Claim status (public, redacted)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));",
+                  "pm.test(\"no email in public response\",()=>pm.expect(pm.response.text()).to.not.include(\"@\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/claims/{{claimPublicId}}"
+          }
+        },
+        {
+          "name": "Review queue",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-reviewer-token",
+                "value": "{{reviewerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/review"
+          }
+        },
+        {
+          "name": "Review queue without token → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401\",()=>pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/review"
+          }
+        },
+        {
+          "name": "Reviewer approve",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 or 409\",()=>pm.expect([200,409]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-reviewer-token",
+                "value": "{{reviewerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/review/{{reviewClaimId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reviewer cannot set amount → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400\",()=>pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-reviewer-token",
+                "value": "{{reviewerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/review/{{reviewClaimId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\",\n  \"amountUsd\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sync pending payouts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-reviewer-token",
+                "value": "{{reviewerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payouts/sync"
+          }
+        },
+        {
+          "name": "Webhook (unverified, re-fetches from PayPal)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));",
+                  "pm.test(\"ignored type\",()=>pm.expect(pm.response.json().handled).to.eql(\"ignored\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/webhooks/paypal",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"WH-POSTMAN-{{$timestamp}}\",\n  \"event_type\": \"PAYMENT.SALE.COMPLETED\",\n  \"resource\": {}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Simulators",
+      "item": [
+        {
+          "name": "Scripted stream donations (sandbox card)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\",()=>pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-reviewer-token",
+                "value": "{{reviewerToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/sim/stream",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"streamId\": \"main\",\n  \"donations\": [\n    {\n      \"name\": \"Ron\",\n      \"amountUsd\": 10\n    },\n    {\n      \"name\": \"Rahul\",\n      \"amountUsd\": 25\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "paypalBase",
+      "value": "https://api-m.sandbox.paypal.com"
+    },
+    {
+      "key": "paypalClientId",
+      "value": ""
+    },
+    {
+      "key": "paypalClientSecret",
+      "value": ""
+    },
+    {
+      "key": "paypalAccessToken",
+      "value": ""
+    },
+    {
+      "key": "reviewerToken",
+      "value": ""
+    },
+    {
+      "key": "claimantEmail",
+      "value": ""
+    },
+    {
+      "key": "orderId",
+      "value": ""
+    },
+    {
+      "key": "claimPublicId",
+      "value": ""
+    },
+    {
+      "key": "reviewClaimId",
+      "value": ""
+    },
+    {
+      "key": "payoutBatchId",
+      "value": ""
+    }
+  ]
+}

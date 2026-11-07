@@ -1,0 +1,128 @@
+// Relief Stream data model — mirrors architecture.md §4.
+// PRIVATE fields (never on the public dashboard or chain): Claim.paypalEmail, Claim.lat, Claim.lon, Claim.messageText.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Donation {
+  id              String       @id @default(uuid()) @db.Uuid
+  paypalOrderId   String       @unique @map("paypal_order_id")
+  paypalCaptureId String       @unique @map("paypal_capture_id")
+  donorPublicId   String       @map("donor_public_id") // HMAC of payer id, no email
+  amountUsd       Decimal      @map("amount_usd") @db.Decimal(12, 2)
+  remainingUsd    Decimal      @map("remaining_usd") @db.Decimal(12, 2)
+  streamId        String       @map("stream_id")
+  source          String       @default("paypal_button") // paypal_button | sim_card
+  solanaTx        String?      @map("solana_tx")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  allocations     Allocation[]
+
+  @@index([donorPublicId])
+  @@index([createdAt])
+  @@map("donation")
+}
+
+model Claim {
+  id              String     @id @default(uuid()) @db.Uuid
+  claimPublicId   String     @unique @map("claim_public_id") // HMAC of PayPal email
+  paypalEmail     String     @map("paypal_email") // PRIVATE
+  lat             Float // PRIVATE
+  lon             Float // PRIVATE
+  geoCell         String     @map("geo_cell") // ~10 km grid, public
+  disasterEventId String?    @map("disaster_event_id")
+  photoSha256     String     @map("photo_sha256")
+  messageText     String     @map("message_text") // PRIVATE
+  status          String     @default("RECEIVED")
+  score           Int?
+  signals         Json?
+  aiExplanation   String?    @map("ai_explanation")
+  aiProvider      String?    @map("ai_provider") // gemini | groq | null (no AI call: duplicate, or both providers failed)
+  aiModel         String?    @map("ai_model")
+  aiCached        Boolean    @default(false) @map("ai_cached") // true = demo cache hit (fixture claims only)
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  decisions       Decision[]
+  payouts         Payout[]
+
+  @@index([paypalEmail])
+  @@index([photoSha256])
+  @@index([status])
+  @@map("claim")
+}
+
+model Decision {
+  id        String   @id @default(uuid()) @db.Uuid
+  claimId   String   @map("claim_id") @db.Uuid
+  claim     Claim    @relation(fields: [claimId], references: [id])
+  actor     String // "engine" | reviewer anon id
+  outcome   String // APPROVED | IN_REVIEW | REJECTED
+  score     Int?
+  reason    String
+  solanaTx  String?  @map("solana_tx")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([claimId])
+  @@map("decision")
+}
+
+model Payout {
+  id            String       @id @default(uuid()) @db.Uuid
+  claimId       String       @map("claim_id") @db.Uuid
+  claim         Claim        @relation(fields: [claimId], references: [id])
+  attempt       Int
+  senderBatchId String       @unique @map("sender_batch_id") // <claim_public_id>-<claim row tag>-<attempt>
+  payoutBatchId String?      @map("payout_batch_id")
+  payoutItemId  String?      @map("payout_item_id")
+  amountUsd     Decimal      @map("amount_usd") @db.Decimal(12, 2)
+  status        String // CREATED | PENDING | SUCCESS | FAILED | UNCLAIMED | ...
+  error         String?
+  solanaTx      String?      @map("solana_tx")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  allocations   Allocation[]
+
+  @@unique([claimId, attempt])
+  @@map("payout")
+}
+
+model Allocation {
+  id         String   @id @default(uuid()) @db.Uuid
+  donationId String   @map("donation_id") @db.Uuid
+  donation   Donation @relation(fields: [donationId], references: [id])
+  payoutId   String   @map("payout_id") @db.Uuid
+  payout     Payout   @relation(fields: [payoutId], references: [id])
+  amountUsd  Decimal  @map("amount_usd") @db.Decimal(12, 2)
+
+  @@unique([donationId, payoutId])
+  @@map("allocation")
+}
+
+model WebhookEvent {
+  eventId    String   @id @map("event_id")
+  eventType  String   @map("event_type")
+  payload    Json
+  receivedAt DateTime @default(now()) @map("received_at")
+
+  @@map("webhook_event")
+}
+
+// Demo cache: validated AI results for simulator FIXTURE claims only (AI_DEMO_CACHE). Not demo data,
+// so sim:reset keeps it. Holds scores + explanation only, never photos, messages or emails.
+model AiCache {
+  key           String   @id // sha256(photo sha | message sha | model | prompt version)
+  provider      String // gemini | groq
+  model         String
+  photoSha256   String   @map("photo_sha256")
+  messageSha256 String   @map("message_sha256")
+  promptVersion String   @map("prompt_version")
+  assessment    Json
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("ai_cache")
+}

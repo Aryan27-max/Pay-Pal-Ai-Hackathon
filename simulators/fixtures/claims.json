@@ -1,0 +1,75 @@
+{
+  "note": "emailIndex points into SIM_CLAIMANT_EMAILS (sandbox personal accounts). Order matters: genuine claims first so later ones get vouching and duplicates are detected.",
+  "claims": [
+    {
+      "key": "genuine-1",
+      "kind": "genuine",
+      "expect": "APPROVED",
+      "emailIndex": 0,
+      "lat": 38.7905,
+      "lon": -90.43,
+      "photo": "genuine-1.jpg",
+      "message": "Tuesday night the Missouri came over the levee near our street in St. Charles. About two feet of water got into the ground floor and ruined our fridge, mattresses and the kids' clothes. We are sleeping at my sister's place for now and need money for food and to rent a pump."
+    },
+    {
+      "key": "genuine-2",
+      "kind": "genuine",
+      "expect": "APPROVED",
+      "emailIndex": 1,
+      "lat": 38.815,
+      "lon": -90.405,
+      "photo": "genuine-2.jpg",
+      "message": "El martes el río Missouri inundó nuestra calle en St. Charles. El agua entró en la casa y perdimos los muebles y la ropa de los niños. Ahora estamos sacando el lodo y necesitamos ayuda para comida y productos de limpieza."
+    },
+    {
+      "key": "genuine-3",
+      "kind": "genuine",
+      "expect": "APPROVED",
+      "emailIndex": 2,
+      "lat": 38.77,
+      "lon": -90.415,
+      "photo": "genuine-3.jpg",
+      "message": "Flood water from the Missouri is still standing in our yard in St. Charles County and the crawl space is full. The power has been out since Wednesday and the furnace was under water. We need help to buy a heater and food until the water goes down."
+    },
+    {
+      "key": "borderline-outside-zone",
+      "kind": "borderline",
+      "expect": "IN_REVIEW",
+      "emailIndex": 3,
+      "lat": 39.09,
+      "lon": -90.95,
+      "photo": "borderline-outside-zone.jpg",
+      "message": "The Missouri River flood this week put water into our basement and garage. Our car was flooded and I lost the tools I use for work. We need help with food and getting the basement pumped out."
+    },
+    {
+      "key": "borderline-no-damage",
+      "kind": "borderline",
+      "expect": "IN_REVIEW",
+      "emailIndex": 4,
+      "lat": 38.76,
+      "lon": -90.69,
+      "photo": "borderline-no-damage.jpg",
+      "message": "Our part of St. Charles flooded on Tuesday when the river rose. Water came up the street and into the house and the floors are ruined. We need help paying for repairs and food."
+    },
+    {
+      "key": "fake-reused-photo",
+      "kind": "fake",
+      "expect": "REJECTED",
+      "emailIndex": 5,
+      "lat": 38.795,
+      "lon": -90.44,
+      "photo": "genuine-1.jpg",
+      "message": "The flood wrecked our house in St. Charles and the water was very high on our street. Please send money to help us."
+    },
+    {
+      "key": "fake-duplicate-account",
+      "kind": "fake",
+      "expect": "REJECTED",
+      "emailIndex": 0,
+      "lat": 38.8,
+      "lon": -90.425,
+      "photo": "fake-duplicate-account.jpg",
+      "message": "The flood destroyed my things in St. Charles. I need more help, please send another payment."
+    }
+  ]
+}
