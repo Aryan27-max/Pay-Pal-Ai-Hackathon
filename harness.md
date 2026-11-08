@@ -92,7 +92,7 @@ Outputs `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md` and `graphify-
   - [x] Local `npm run demo -- --runs 3` (cache on) + 1 live run (cache off): every fake caught by the right check, 4/4 runs
   - [x] Recovery sweep, dHash + multi-crop near-duplicates, race lock (`npm run check:robustness`), reviewer e2e (`npm run test:e2e`)
   - [x] Guards: check:env per phase (`--core` for judges), AI daily budget, graceful degradation
-  - [ ] PayPal webhook via `npm run tunnel` + `PAYPAL_WEBHOOK_ID`, one real signed webhook verified
+  - [x] PayPal webhook via `npm run tunnel` + `PAYPAL_WEBHOOK_ID`, real signed webhooks verified (Nov 8: 3 PayPal-signed PAYMENT.PAYOUTS-ITEM.SUCCEEDED events stored; a resend of the same 3 was de-duplicated, payouts and allocations unchanged; a fake unsigned event → 400 `signature_verification_failed`)
   - [ ] Manual PayPal button donation (US donor) through the tunnel
   - [x] Confirm both Zapier test emails arrived (alerts:test review + ops sent OK; arrival confirmed by the user, Nov 8)
   - [ ] Record the two voice clips (`simulators/fixtures/audio/README.md`)
