@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌊 Relief Stream
+# Relief Stream
 
 ### Charity-stream money, paid **directly** to verified people in a disaster zone, with a public receipt that shows where every dollar went.
 
@@ -21,13 +21,13 @@
 
 ![Public dashboard: every dollar accounted for](docs/screenshots/02-dashboard.png)
 
-**[The idea](#-the-idea) · [How it works](#-how-it-works) · [Privacy on-chain](#-private-by-design-anonymous-people-public-proof) · [Screenshots](#-screenshots) · [Sponsors](#-sponsor-tools-and-what-we-built-with-them) · [AI tools](#-ai-tools-used) · [Architecture](#-architecture) · [Run it](#-run-in-10-minutes)**
+**[The idea](#the-idea) · [How it works](#how-it-works) · [Privacy on-chain](#private-by-design-anonymous-people-public-proof) · [Screenshots](#screenshots) · [Sponsors](#sponsor-tools-and-what-we-built-with-them) · [AI tools](#ai-tools-used) · [Architecture](#architecture) · [Run it](#run-in-10-minutes)**
 
 </div>
 
 ---
 
-## 💡 The idea
+## The idea
 
 A streamer goes live during a disaster. Chat gets emotional, viewers donate, and a big number scrolls across the screen. Then it goes quiet.
 
@@ -39,41 +39,41 @@ Donors never find out. There is no preview of where the money lands, and no way 
 
 | | Promise | How |
 | --- | --- | --- |
-| 🎯 | **It lands with the right people** | AI agents verify every person asking for help (location, photo, message, uniqueness, community vouching). Fakes are stopped by the code that moves the money. |
-| 🤝 | **No middleman** | Donations sit in one PayPal pool. Verified people are paid **directly** with PayPal Payouts. Reviewers can approve or reject; they can never change an amount or a recipient. |
-| 🔍 | **Anyone can check, and nobody is exposed** | Every donation, decision and payout is written to a public **Solana** trail using **anonymous ids only**. Each donor gets a receipt: *"your $25 → claim 8B3B, Missouri River flood, verified 06:14, paid"*. |
+| | **It lands with the right people** | AI agents verify every person asking for help (location, photo, message, uniqueness, community vouching). Fakes are stopped by the code that moves the money. |
+| | **No middleman** | Donations sit in one PayPal pool. Verified people are paid **directly** with PayPal Payouts. Reviewers can approve or reject; they can never change an amount or a recipient. |
+| | **Anyone can check, and nobody is exposed** | Every donation, decision and payout is written to a public **Solana** trail using **anonymous ids only**. Each donor gets a receipt: *"your $25 → claim 8B3B, Missouri River flood, verified 06:14, paid"*. |
 
 **The test for every feature:** if we removed the AI, would it stop working? If not, the AI is decoration. Here the AI judges evidence a human would otherwise have to read, and **plain TypeScript decides the money**.
 
 ---
 
-## ⚙️ How it works
+## How it works
 
 ```mermaid
 flowchart LR
-    A["🎥 Viewers donate<br/>PayPal button"] --> B[("💰 One PayPal<br/>relief pool")]
-    C["🆘 Person in the zone<br/>GPS · photo · text / voice"] --> D["🔎 5 checks in parallel<br/>location · photo · message<br/>uniqueness · vouching"]
-    D --> E["🤖 ONE AI call<br/>scores the evidence"]
-    E --> F{"⚖️ lib/scoring<br/>plain TypeScript"}
-    F -->|"≥ 75"| G["💸 PayPal Payout<br/>direct to the person"]
-    F -->|"50–74"| H["🧑‍⚖️ Human reviewer<br/>approve / reject + reason"]
-    F -->|"&lt; 50 or proven fraud"| I["⛔ Rejected"]
+    A["Viewers donate<br/>PayPal button"] --> B[("One PayPal<br/>relief pool")]
+    C["Person in the zone<br/>GPS · photo · text / voice"] --> D["5 checks in parallel<br/>location · photo · message<br/>uniqueness · vouching"]
+    D --> E["ONE AI call<br/>scores the evidence"]
+    E --> F{"lib/scoring<br/>plain TypeScript"}
+    F -->|"≥ 75"| G["PayPal Payout<br/>direct to the person"]
+    F -->|"50–74"| H["Human reviewer<br/>approve / reject + reason"]
+    F -->|"&lt; 50 or proven fraud"| I["Rejected"]
     H --> G
     B --> G
-    G --> J["⛓️ Solana devnet trail<br/>anonymous ids + hashes"]
+    G --> J["Solana devnet trail<br/>anonymous ids + hashes"]
     F --> J
     A --> J
-    J --> K["🧾 Donor receipt<br/>where your money went"]
+    J --> K["Donor receipt<br/>where your money went"]
 ```
 
 1. **Donate.** Viewers donate with the PayPal button (Orders v2). Every donation lands in one relief pool.
 2. **Claim.** Someone in the disaster zone submits GPS, a photo, a typed message and/or a **voice note**, and their PayPal email.
 3. **Five checks run in parallel:**
-   - 📍 **location** against live GDACS/USGS disaster areas, plus an official alert page read by a Kernel cloud browser;
-   - 📷 **photo**: EXIF, and near-duplicate search with multi-crop CLIP and a perceptual hash;
-   - 🎙️ **voice note**: transcribed by Groq Whisper;
-   - 🪪 **uniqueness**: same PayPal account, same photo, or a near-duplicate;
-   - 🤝 **community vouching**: approved claims of the same event within 10 km.
+   - **location** against live GDACS/USGS disaster areas, plus an official alert page read by a Kernel cloud browser;
+   - **photo**: EXIF, and near-duplicate search with multi-crop CLIP and a perceptual hash;
+   - **voice note**: transcribed by Groq Whisper;
+   - **uniqueness**: same PayPal account, same photo, or a near-duplicate;
+   - **community vouching**: approved claims of the same event within 10 km.
 4. **One AI call per claim** scores whether the photo shows damage that matches the disaster, whether it looks AI-generated, and whether the story fits the event.
 5. **Plain TypeScript decides** (`lib/scoring`): **≥ 75** is paid automatically, **50–74** goes to a human reviewer, **< 50** is rejected.
    - **Rejected outright:** fraud the code can prove (duplicate account, reused or edited photo, a location nowhere near a disaster).
@@ -81,27 +81,27 @@ flowchart LR
 6. **Pay.** PayPal Payouts sends the money straight to the verified person. Each payout is matched FIFO (oldest donations first) to the donations that funded it.
 7. **Prove.** The decision and payout go on the public Solana trail. Donors open their receipt and follow the money.
 
-### 🕵️ What the demo catches
+### What the demo catches
 
 There are 12 fixture claims: 3 genuine, 2 borderline and **7 planted fakes**. Each fake must be stopped by the *right* check (verified on every demo run):
 
 | Fake | Caught by | Outcome |
 | --- | --- | --- |
-| Same photo again, another account | photo SHA-256 | ⛔ REJECTED |
-| Second claim from one PayPal account | account match | ⛔ REJECTED |
-| Cropped + re-compressed copy of a photo | multi-crop CLIP (0.941) + dHash | ⛔ REJECTED |
-| Heavy edit (crop + resize + brightness) | multi-crop CLIP (0.948) | ⛔ REJECTED |
-| AI-generated flood photo | Gemini AI-generated risk + evidence floor | 🧑‍⚖️ IN_REVIEW (a human decides) |
-| Claimant 1,200 km from any disaster | location rule (> 100 km from every active event) | ⛔ REJECTED |
-| Voice note about another disaster | Whisper → message check + evidence floor | 🧑‍⚖️ IN_REVIEW |
+| Same photo again, another account | photo SHA-256 | REJECTED |
+| Second claim from one PayPal account | account match | REJECTED |
+| Cropped + re-compressed copy of a photo | multi-crop CLIP (0.941) + dHash | REJECTED |
+| Heavy edit (crop + resize + brightness) | multi-crop CLIP (0.948) | REJECTED |
+| AI-generated flood photo | Gemini AI-generated risk + evidence floor | IN_REVIEW (a human decides) |
+| Claimant 1,200 km from any disaster | location rule (> 100 km from every active event) | REJECTED |
+| Voice note about another disaster | Whisper → message check + evidence floor | IN_REVIEW |
 
 ---
 
-## 🔐 Private by design: anonymous people, public proof
+## Private by design: anonymous people, public proof
 
 A public trail is only useful if it can't hurt the people in it. Relief Stream puts **proof** on-chain and **identity** nowhere public.
 
-| ✅ Public (dashboard, receipts, Solana) | ❌ Never public or on-chain |
+| Public (dashboard, receipts, Solana) | Never public or on-chain |
 | --- | --- |
 | `claim_id = HMAC(secret salt, PayPal email)`, a one-way anonymous id | names, emails, phone numbers |
 | location rounded to a **~10 km grid** | exact GPS |
@@ -121,13 +121,13 @@ The record behind each hash is published at `/api/trail`, so **anyone can recomp
 
 | Step | Explorer |
 | --- | --- |
-| 💵 Donation ($10) | [`62xcMvyD…GZo1`](https://explorer.solana.com/tx/62xcMvyDnhyTDLxaatfuAFwLBKiRBc37VsLp7JLE6ftvXPYE3suX1Pe5jLrk31jLVia5A4FtPLVcw6X3XaKdGZo1?cluster=devnet) |
-| ⚖️ Decision: approved (score 84) | [`3uRfJatg…xji8r`](https://explorer.solana.com/tx/3uRfJatg45eMiwJkv5mJYB8RqiAUEaZBTx82XQvBd9w7CHzbZQEUz6NxSi9yVQFLNqCyyJdTMwTxYkwaAZxrji8r?cluster=devnet) |
-| 💸 Payout ($50 via PayPal) | [`4SbH65BS…ihQx4g`](https://explorer.solana.com/tx/4SbH65BSCQnTKVvnHpKNmqBbgPbNarnvP5sGWfhgVbYAwZEq6xjJU5x4ic5eLUnstywd8xb2bfRyNtEoH4ihQx4g?cluster=devnet) |
+| Donation ($10) | [`62xcMvyD…GZo1`](https://explorer.solana.com/tx/62xcMvyDnhyTDLxaatfuAFwLBKiRBc37VsLp7JLE6ftvXPYE3suX1Pe5jLrk31jLVia5A4FtPLVcw6X3XaKdGZo1?cluster=devnet) |
+| Decision: approved (score 84) | [`3uRfJatg…xji8r`](https://explorer.solana.com/tx/3uRfJatg45eMiwJkv5mJYB8RqiAUEaZBTx82XQvBd9w7CHzbZQEUz6NxSi9yVQFLNqCyyJdTMwTxYkwaAZxrji8r?cluster=devnet) |
+| Payout ($50 via PayPal) | [`4SbH65BS…ihQx4g`](https://explorer.solana.com/tx/4SbH65BSCQnTKVvnHpKNmqBbgPbNarnvP5sGWfhgVbYAwZEq6xjJU5x4ic5eLUnstywd8xb2bfRyNtEoH4ihQx4g?cluster=devnet) |
 
 ---
 
-## 📸 Screenshots
+## Screenshots
 
 ### 1. The stream page: viewers donate with PayPal, the pool fills live
 ![Stream page](docs/screenshots/01-stream.png)
@@ -152,7 +152,7 @@ Per-signal scores for all 12 claims, the AI daily budget, and which optional ser
 
 ---
 
-## 🤝 Sponsor tools and what we built with them
+## Sponsor tools and what we built with them
 
 | | Sponsor | What we built with it | Where |
 | :-: | --- | --- | --- |
@@ -170,7 +170,7 @@ Per-signal scores for all 12 claims, the AI daily budget, and which optional ser
 
 ---
 
-## 🤖 AI tools used
+## AI tools used
 
 | Tool | Where | What it does |
 | --- | --- | --- |
@@ -184,7 +184,7 @@ Per-signal scores for all 12 claims, the AI daily budget, and which optional ser
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```mermaid
 flowchart TB
@@ -229,16 +229,16 @@ flowchart TB
 
 **Design rules the code enforces**
 
-- 💵 **Money decisions are code, not AI.** `lib/scoring` decides and sizes payouts. Only `workflows/send-payout.ts` calls Payouts, and only after an `APPROVED` decision.
-- 🛡️ **Reviewers can't change amounts or recipients.** The review API accepts `{action, reason}` only. The reason is stored as a hash.
-- 🔏 **Privacy:** HMAC ids, a ~10 km public grid, photos and voice notes deleted once the claim is decided, no email on any public page, alert or on-chain record.
-- 🧪 **Sandbox and devnet only:** the PayPal client refuses non-sandbox URLs, and the trail refuses non-devnet RPCs.
-- 🔁 **Idempotent and recoverable:** `PayPal-Request-Id`, a unique `sender_batch_id` per claim and attempt, webhooks de-duplicated by event id, one trail entry per event, and a recovery sweep that re-runs stuck claims without ever deciding or paying twice.
-- 🧯 **Graceful degradation:** only PayPal sandbox, Gemini and Postgres are required. Every other service switches off cleanly.
+- **Money decisions are code, not AI.** `lib/scoring` decides and sizes payouts. Only `workflows/send-payout.ts` calls Payouts, and only after an `APPROVED` decision.
+- **Reviewers can't change amounts or recipients.** The review API accepts `{action, reason}` only. The reason is stored as a hash.
+- **Privacy:** HMAC ids, a ~10 km public grid, photos and voice notes deleted once the claim is decided, no email on any public page, alert or on-chain record.
+- **Sandbox and devnet only:** the PayPal client refuses non-sandbox URLs, and the trail refuses non-devnet RPCs.
+- **Idempotent and recoverable:** `PayPal-Request-Id`, a unique `sender_batch_id` per claim and attempt, webhooks de-duplicated by event id, one trail entry per event, and a recovery sweep that re-runs stuck claims without ever deciding or paying twice.
+- **Graceful degradation:** only PayPal sandbox, Gemini and Postgres are required. Every other service switches off cleanly.
 
 Full design, data model, scoring rules and sequence diagrams: **[architecture.md](architecture.md)** · Plan and rules: [harness.md](harness.md)
 
-### 🗂️ Code map
+### Code map
 
 | Path | What lives here |
 | --- | --- |
@@ -266,7 +266,7 @@ Full design, data model, scoring rules and sequence diagrams: **[architecture.md
 
 ---
 
-## 🚀 Run in 10 minutes
+## Run in 10 minutes
 
 **You need:** Node 20+ (tested on 24), **Docker Desktop** (free), a **PayPal developer account** (free; sandbox) and a **Gemini API key** (free, [aistudio.google.com](https://aistudio.google.com)). Nothing else is required.
 
@@ -339,7 +339,7 @@ The tunnel URL changes every time, so register the webhook again each time. With
 
 ---
 
-## 💸 Zero-cost design
+## Zero-cost design
 
 - **Local first:** Postgres and Elasticsearch run in Docker, CLIP runs on your CPU, and the tunnel is a free Cloudflare quick tunnel.
 - **Free AI tiers only:**
@@ -348,7 +348,7 @@ The tunnel URL changes every time, so register the webhook again each time. With
 - **Graceful degradation:** only PayPal sandbox, Gemini and Postgres are required.
 - **No paid hosting needed** to try it: judges run it locally with the commands above.
 
-## ☁️ Deployment (optional)
+## Deployment (optional)
 The submission runs locally (above). `render.yaml` is a ready Blueprint for **one free Render web service**, if you want a hosted copy:
 - **Memory:** Render's free instance has **512 MB**. We measured the production server (`next build && next start`) at **416 MB peak** after four claims, with CLIP loaded lazily as q4 weights, a lean ONNX session and `NODE_OPTIONS=--max-old-space-size=192` (all set in `render.yaml`; q8 peaked at 538 MB). All the photo fakes are still caught at q4.
 - **Database:** Render's free Postgres is deleted after 30 days, so use **Neon's free plan** (permanent, no card): put its connection string in `DATABASE_URL`, then run `npx prisma migrate deploy` and `npx tsx scripts/seed.ts` once.
@@ -358,7 +358,7 @@ The submission runs locally (above). `render.yaml` is a ready Blueprint for **on
 
 ---
 
-## ✅ What we tested
+## What we tested
 
 | Check | Result |
 | --- | --- |
@@ -372,15 +372,15 @@ The submission runs locally (above). `render.yaml` is a ready Blueprint for **on
 | Fresh clone, core keys only | `setup` → `check:env -- --core` → `dev:local` → `demo` passes |
 | Secret scan of every file and the full git history | no secrets; `.env` never committed |
 
-## ⚠️ Known limits
+## Known limits
 - **Solana trail:** needs a devnet wallet funded at faucet.solana.com. Records are written **memo-only** unless the wallet also holds test PYUSD.
 - A heavy edit can get past the near-duplicate check when CLIP places it near other flood photos (measured; see architecture.md §5).
 - The disaster areas come from GDACS polygons or radius heuristics. Kernel reads one official page (NWS, US only).
 - In dev mode, the first page you open after starting the server may reload a few times while it compiles. Seen in a OneDrive-synced folder.
 - Test money only. A real deployment needs PayPal production approval, Enterprise Payouts for PYUSD, and a privacy review.
 
-## 🙏 Credits
+## Credits
 Demo claim photos are public-domain FEMA images and one public-domain AI-generated image from Wikimedia Commons. The cropped and heavy-edit fakes are derived from one of them. The contradicting voice note is self-made with Windows text-to-speech. Brand logos are from [Simple Icons](https://simpleicons.org) (CC0) and the companies' own sites; they belong to their owners. See [simulators/fixtures/photos/CREDITS.md](simulators/fixtures/photos/CREDITS.md) and [simulators/fixtures/audio/README.md](simulators/fixtures/audio/README.md).
 
-## 📄 License
+## License
 [MIT](LICENSE)
