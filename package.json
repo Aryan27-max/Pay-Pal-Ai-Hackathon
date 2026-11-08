@@ -33,7 +33,8 @@
     "stack:down": "docker compose down",
     "check:robustness": "tsx scripts/robustness-check.ts",
     "test:e2e": "tsx scripts/e2e-review.ts",
-    "test:api": "tsx scripts/newman-run.ts"
+    "test:api": "tsx scripts/newman-run.ts",
+    "screenshots": "tsx --env-file=.env scripts/screenshots.ts"
   },
   "dependencies": {
     "@elastic/elasticsearch": "^9.5.1",
