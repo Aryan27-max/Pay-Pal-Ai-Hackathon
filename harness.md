@@ -98,7 +98,7 @@ Outputs `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md` and `graphify-
   - [ ] Record the two voice clips (`simulators/fixtures/audio/README.md`)
 - [ ] **Phase 3: public trail + transparency (local, free)**
   - [x] Solana trail queue + worker (Token-2022 test PYUSD + Memo), on every donation/decision/payout
-  - [ ] Trail on chain: fund the trail wallet with devnet SOL (+ test PYUSD), then re-run the demo for signatures
+  - [x] Trail on chain: wallet funded with devnet SOL (Nov 8); all 21 queued records CONFIRMED (memo-only: no test PYUSD yet), finalized on devnet, explorer links on receipts
   - [x] AG Grid public dashboard `/dashboard`, donor receipts `/receipt/[id]`, `/api/trail`, `/api/receipts/:id`
   - [x] Postman via Newman (`npm run test:api`, 40/40), judge-ready README
   - [ ] PayPal Agent Toolkit: skipped (no payouts tool; direct tool calls undocumented)
