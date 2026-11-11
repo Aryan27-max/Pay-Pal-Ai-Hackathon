@@ -121,7 +121,9 @@ services:
     plan: free
     # --include=dev: NODE_ENV=production would otherwise skip the build tooling (typescript, tailwind, tsx).
     # migrate deploy is idempotent; clip:prefetch puts the CLIP model in node_modules (shipped with the build).
-    buildCommand: npm ci --include=dev && npx prisma migrate deploy && npm run clip:prefetch && npm run build
+    # The build gets its own 1 GB heap (the 192 MB NODE_OPTIONS cap is for the running app) and skips the
+    # duplicate type check (npm run typecheck runs before every push).
+    buildCommand: npm ci --include=dev && npx prisma migrate deploy && npm run clip:prefetch && NODE_OPTIONS=--max-old-space-size=1024 SKIP_BUILD_TYPECHECK=1 npm run build
     startCommand: npm start
     healthCheckPath: /api/pool
     envVars:
