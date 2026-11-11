@@ -46,7 +46,8 @@ const EnvSchema = z
     WHISPER_MODE: z.enum(["groq", "local"]).optional().default("groq"),
     GROQ_WHISPER_MODEL: z.string().optional().default("whisper-large-v3-turbo"),
     WHISPER_LOCAL_MODEL: z.string().optional().default("base"),
-    CLIP_MODE: z.literal("local").optional().default("local"),
+    // local = transformers.js on CPU | off = never load the model (perceptual hash only; for very small hosts).
+    CLIP_MODE: z.enum(["local", "off"]).optional().default("local"),
     CLIP_MODEL_ID: z.string().optional().default("Xenova/clip-vit-base-patch32"),
     CLIP_DTYPE: z.enum(["q8", "q4", ""]).optional().default(""),
     ELASTIC_URL: z.string().optional().default(""),

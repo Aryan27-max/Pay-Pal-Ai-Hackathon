@@ -1,30 +1,51 @@
-# Render Blueprint for Relief Stream (render.com/docs/blueprint-spec, checked 2026-11-07).
-# FREE TIERS ONLY (decision 2026-11-07): one free web service; verification runs INLINE in it
-# (RENDER_WORKFLOW_SERVICE_ID unset → workflows/dispatch.ts runs the same functions in-process).
-#   web       Next.js app (stream page, claims API, reviewer queue, admin)      plan free
-#   workflow  NOT deployed: Render Workflows has no free tier (per-second billing). The task service is
-#             built and its 8 tasks register (workflows/render.ts); to switch it on, uncomment the block
-#             at the end and set RENDER_API_KEY, RENDER_WORKFLOW_SERVICE_ID and RENDER_WORKFLOW_SLUG.
-#   Postgres  the EXISTING Render Postgres (Singapore). It already holds the data the local simulators
-#             read, so this Blueprint does not create a second database: paste its INTERNAL connection
-#             string as DATABASE_URL when Render asks (Dashboard → your Postgres → Connections).
-# Everything runs in singapore, the database's region, so all traffic stays on Render's private network.
-# Secrets are `sync: false`: Render prompts for them once, when the Blueprint is first created.
-# Sandbox and devnet only: PAYPAL_API_BASE must be the sandbox host (check:env enforces it).
+# Render Blueprint for Relief Stream (render.com/docs/blueprint-spec). FREE TIERS ONLY.
+#   web       Next.js app on ONE free Render web service (512 MB, spins down after 15 min idle, ~1 min wake-up).
+#             Verification, payouts, the recovery sweep and the Solana trail worker run INLINE in this process
+#             (RENDER_WORKFLOW_SERVICE_ID unset → workflows/dispatch.ts runs the same functions in-process).
+#   Postgres  NOT created here: Render's free Postgres is deleted after 30 days. Use Neon's free plan (permanent,
+#             direct connection, ?sslmode=require). Paste the URL as DATABASE_URL when Render asks.
+#   Elastic   NOT used: no free hosted Elasticsearch. With ELASTIC_URL empty, CLIP near-duplicates are stored and
+#             compared in Postgres (lib/search/photos-pg) and vouching uses Postgres: same rules, same fakes caught.
+#   workflow  NOT deployed: Render Workflows has no free tier. To switch it on later, uncomment the block at the end.
+# Secrets are `sync: false`: Render asks for them once, when the Blueprint is first created. Leave an OPTIONAL one
+# empty to switch that service off (lib/services.ts). Sandbox and devnet only (check:env and the code enforce it).
 
 envVarGroups:
   - name: relief-stream-shared
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
+      # ---- required ----
+      - key: DATABASE_URL # Neon connection string, ending in ?sslmode=require
         sync: false
-      - key: APP_BASE_URL
+      - key: APP_BASE_URL # https://<your-service>.onrender.com (set after the first deploy, then redeploy)
         sync: false
-      - key: CLAIM_ID_SALT
+      - key: CLAIM_ID_SALT # 64 hex chars; KEEP the same value as your local .env, or claim ids change
         sync: false
-      - key: REVIEWER_ACCESS_TOKEN
+      - key: REVIEWER_ACCESS_TOKEN # password for /review, /admin and the operator APIs
         sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_POOL_BUSINESS_EMAIL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      # ---- optional (empty = that service is off; nothing crashes) ----
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SOLANA_TRAIL_WALLET_SECRET_KEY
+        sync: false
+      - key: KERNEL_API_KEY
+        sync: false
+      - key: ZAPIER_REVIEW_WEBHOOK_URL
+        sync: false
+      - key: ZAPIER_ALERT_WEBHOOK_URL
+        sync: false
+      # ---- fixed values ----
       - key: AUTO_PAYOUT_THRESHOLD
         value: "75"
       - key: HUMAN_REVIEW_THRESHOLD
@@ -47,79 +68,65 @@ envVarGroups:
         value: sandbox
       - key: PAYPAL_API_BASE
         value: https://api-m.sandbox.paypal.com
-      - key: PAYPAL_CLIENT_ID
-        sync: false
-      - key: PAYPAL_CLIENT_SECRET
-        sync: false
-      - key: PAYPAL_WEBHOOK_ID
-        sync: false
-      - key: PAYPAL_POOL_BUSINESS_EMAIL
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
       - key: GEMINI_MODEL_FAST
         value: gemini-3.5-flash-lite
       - key: GEMINI_MODEL_REASONING
         value: gemini-3.5-flash-lite
       - key: GEMINI_MODEL_VISION
         value: gemini-3.5-flash-lite
-      - key: GROQ_API_KEY
-        sync: false
       - key: GROQ_VISION_MODEL
         value: qwen/qwen3.8-27b
-      # Off in production (Phase 1 rule): every claim on the hosted app calls the AI (~7 Flash-Lite calls per demo run).
-      - key: AI_DEMO_CACHE
-        value: "off"
-      - key: WHISPER_MODE
-        value: groq
       - key: GROQ_WHISPER_MODEL
         value: whisper-large-v3-turbo
+      - key: WHISPER_MODE
+        value: groq
+      # Off in production: every claim on the hosted app calls the AI (~7 Flash-Lite calls per demo run).
+      - key: AI_DEMO_CACHE
+        value: "off"
+      - key: AI_DAILY_CALL_BUDGET_GEMINI
+        value: "400"
+      - key: AI_DAILY_CALL_BUDGET_GROQ
+        value: "800"
+      # CLIP on the free 512 MB plan (measured 2026-11-08, production server, 4 claims incl. voice): peak 416 MB
+      # with q4 + lean ONNX session + a 192 MB JS heap cap. If Render ever restarts it for memory, set
+      # CLIP_MODE=off (perceptual hash only: resized/re-compressed copies still caught, crops may pass).
       - key: CLIP_MODE
         value: local
       - key: CLIP_MODEL_ID
         value: Xenova/clip-vit-base-patch32
-      # Memory on the free 512 MB plan (measured 2026-11-08, production server, 4 claims incl. voice):
-      # peak 416 MB with q4 + lean ONNX session + a 192 MB JS heap cap (538 MB before).
       - key: CLIP_DTYPE
         value: q4
       - key: NODE_OPTIONS
         value: --max-old-space-size=192
-      - key: ELASTIC_URL
-        sync: false
-      - key: ELASTIC_API_KEY
-        sync: false
-      - key: ELASTIC_CLAIMS_INDEX
-        value: relief-claims
-      - key: ELASTIC_PHOTOS_INDEX
-        value: relief-photos
       - key: GDACS_FEED_URL
         value: https://www.gdacs.org/gdacsapi/api/Events/geteventlist/search?eventlist=FL;TC;EQ;WF;VO
       - key: USGS_FEED_URL
         value: https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson
       - key: SIMULATED_EVENT
         value: "on"
-      - key: KERNEL_API_KEY
-        sync: false
-      - key: ZAPIER_REVIEW_WEBHOOK_URL
-        sync: false
-      - key: ZAPIER_ALERT_WEBHOOK_URL
-        sync: false
       - key: POOL_LOW_USD
         value: "100"
+      - key: SOLANA_RPC_URL
+        value: https://api.devnet.solana.com
+      - key: PYUSD_DEVNET_MINT
+        value: CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM
+      - key: SOLANA_EXPLORER_BASE
+        value: https://explorer.solana.com
 
 services:
   - type: web
     name: relief-stream-web
     runtime: node
-    region: singapore
+    region: singapore # pick the region closest to your Neon / Supabase database
     plan: free
     # --include=dev: NODE_ENV=production would otherwise skip the build tooling (typescript, tailwind, tsx).
+    # migrate deploy is idempotent; clip:prefetch puts the CLIP model in node_modules (shipped with the build).
     buildCommand: npm ci --include=dev && npx prisma migrate deploy && npm run clip:prefetch && npm run build
     startCommand: npm start
     healthCheckPath: /api/pool
     envVars:
       - fromGroup: relief-stream-shared
-      # Browser-side PayPal JS SDK id (same value as PAYPAL_CLIENT_ID); inlined at build time.
+      # Browser-side PayPal JS SDK id (same value as PAYPAL_CLIENT_ID); inlined at BUILD time.
       - key: NEXT_PUBLIC_PAYPAL_CLIENT_ID
         sync: false
 

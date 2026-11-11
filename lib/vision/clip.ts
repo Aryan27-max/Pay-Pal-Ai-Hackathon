@@ -15,6 +15,14 @@ export function clipModelId(): string {
 }
 
 /**
+ * CLIP_MODE = local (default) | off. off never loads the model: the photo check then uses the perceptual
+ * hash only. It is the switch for a host that is too small for the model (it needs ~250 MB on its own).
+ */
+export function clipEnabled(): boolean {
+  return (process.env.CLIP_MODE?.trim() || "local") !== "off";
+}
+
+/**
  * Weights: CLIP_DTYPE = q8 (default) | q4. Measured on the fixtures (2026-11-08, standalone peak RSS while
  * embedding 4 photos × 7 crops): q8 293 MB, q4 250 MB; both keep the cropped fake at 0.941, the heavy edit at
  * 0.954–0.958 and the closest different photo at 0.903–0.904, so the 0.92 threshold holds. uint8 pushed a

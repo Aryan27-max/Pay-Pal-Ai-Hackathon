@@ -53,6 +53,7 @@ model Claim {
   kernelStatus    String?    @map("kernel_status") // active | none | failed | skipped | cached
   kernelReplayUrl String?    @map("kernel_replay_url") // PRIVATE (replay URLs are sensitive): /admin only
   evidence        ClaimEvidence?
+  photoEmbeddings PhotoEmbedding[]
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
   decisions       Decision[]
@@ -147,6 +148,21 @@ model ClaimEvidence {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("claim_evidence")
+}
+
+// CLIP crop embeddings, used ONLY when Elasticsearch is not configured (free hosting): the same rows as the
+// Elastic photos index (claim public id + crop variant + 512 float32), compared in code (lib/search/photos-pg).
+// No PII. Deleted with the claim.
+model PhotoEmbedding {
+  claimPublicId String   @map("claim_public_id")
+  claim         Claim    @relation(fields: [claimPublicId], references: [claimPublicId], onDelete: Cascade)
+  variant       String // full | c80 | c65 | tl75 | tr75 | bl75 | br75
+  vec           Bytes // 512 × float32 LE, unit length
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@id([claimPublicId, variant])
+  @@index([createdAt])
+  @@map("photo_embedding")
 }
 
 // Shared cache for disaster feeds and Kernel alert-page checks (all workflow instances see it).

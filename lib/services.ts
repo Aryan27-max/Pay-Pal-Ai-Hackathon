@@ -31,7 +31,7 @@ export const SERVICES: ServiceDef[] = [
     phase: 2,
     keys: ["ELASTIC_URL"],
     whenOff:
-      "CLIP near-duplicate search is off; the perceptual hash in Postgres still catches resized / re-compressed / brightened copies, but a heavy crop may pass. Vouching uses a Postgres distance query instead. Scores are otherwise unchanged.",
+      "CLIP crop embeddings are stored and compared in Postgres instead (exact search, same rule, demo-size pools), so cropped and edited photos are still caught. Vouching uses a Postgres distance query instead. Scores are unchanged.",
   },
   {
     id: "kernel",

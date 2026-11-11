@@ -8,9 +8,10 @@ import { elasticConfigured } from "@/lib/search/client";
 import { countVouchers, VOUCH_STATUSES } from "@/lib/search/claims";
 import { haversineKm } from "@/lib/privacy";
 import { indexPhotoVariants, nearestPhotos, type PhotoMatch } from "@/lib/search/photos";
+import { nearestPhotosPg, storePhotoVariantsPg } from "@/lib/search/photos-pg";
 import { transcribe } from "@/lib/speech";
 import { CLIP_DUPLICATE_THRESHOLD, nearDuplicateRule, type NearDupRule } from "@/lib/scoring";
-import { embedCrops } from "@/lib/vision/clip";
+import { clipEnabled, embedCrops } from "@/lib/vision/clip";
 import { dHash, hamming } from "@/lib/vision/phash";
 import { readExif } from "@/lib/vision/exif";
 
@@ -69,7 +70,9 @@ export async function checkLocationStep(claimId: string): Promise<LocationResult
   };
 }
 
-/* 2. Photo: EXIF + near-duplicates (perceptual dHash in Postgres + multi-crop CLIP in Elasticsearch).
+/* 2. Photo: EXIF + near-duplicates (perceptual dHash in Postgres + multi-crop CLIP).
+ *    CLIP crops are stored and searched in Elasticsearch when ELASTIC_URL is set, otherwise in Postgres
+ *    (lib/search/photos-pg: same rule, exact comparison), so free hosting keeps the cropped-photo check.
  *    The comparison and the registration of this photo happen inside ONE Postgres advisory lock, so two
  *    claims submitted at the same moment can't both miss each other: the second one through the lock
  *    always sees the first. */
@@ -83,8 +86,10 @@ export type PhotoResult = {
   nearDuplicate: boolean;
   rule: NearDupRule | null;
   threshold: number;
-  /** CLIP + Elastic: on | disabled (no ELASTIC_URL: not an error) | error (configured but failing). */
+  /** CLIP: on | disabled (CLIP_MODE=off: not an error) | error (configured but failing). */
   clip: "on" | "disabled" | "error";
+  /** Where the crop embeddings are stored and searched (null when CLIP is off). */
+  clipStore: "elastic" | "postgres" | null;
   /** True only when a CONFIGURED check failed: then the claim is never auto-paid. Disabled is not unavailable. */
   unavailable: boolean;
   error?: string;
@@ -94,17 +99,18 @@ export async function checkPhotoStep(claimId: string): Promise<PhotoResult> {
   const c = await loadClaim(claimId);
   const ev = await getEvidence(claimId, "photo");
   const base = { threshold: CLIP_DUPLICATE_THRESHOLD };
-  if (!ev) return { ...base, exif: { present: false }, dhash: null, nearest: null, nearDuplicate: false, rule: null, clip: "error", unavailable: true, error: "evidence already deleted" };
+  if (!ev) return { ...base, exif: { present: false }, dhash: null, nearest: null, nearDuplicate: false, rule: null, clip: "error", clipStore: null, unavailable: true, error: "evidence already deleted" };
   const bytes = ev.photo;
   const exif = await readExif(bytes);
   const exifJson = { present: exif.present, ...(exif.takenAt ? { takenAt: exif.takenAt.toISOString() } : {}), ...(exif.gps ? { gps: exif.gps } : {}) };
   const myHash = await dHash(bytes);
 
   // Embeddings are computed OUTSIDE the lock (the slow part); only compare + register happen inside it.
-  const useClip = elasticConfigured();
+  const useClip = clipEnabled();
+  const clipStore: PhotoResult["clipStore"] = !useClip ? null : elasticConfigured() ? "elastic" : "postgres";
   let crops: Array<{ variant: string; vec: number[] }> = [];
   let clipState: PhotoResult["clip"] = useClip ? "on" : "disabled";
-  let error: string | undefined = useClip ? undefined : "disabled: no key (ELASTIC_URL): dHash only";
+  let error: string | undefined = useClip ? undefined : "disabled: CLIP_MODE=off: dHash only";
   if (useClip) {
     try {
       crops = await embedCrops(bytes);
@@ -120,9 +126,14 @@ export async function checkPhotoStep(claimId: string): Promise<PhotoResult> {
       const others = await tx.claim.findMany({ where: { id: { not: claimId }, photoDhash: { not: null } }, select: { claimPublicId: true, photoDhash: true } });
       const dist = new Map(others.map((o) => [o.claimPublicId, hamming(myHash, o.photoDhash!)]));
       let clipMatches: PhotoMatch[] = [];
-      if (clipState === "on") {
+      const full = crops.find((v) => v.variant === "full")?.vec;
+      if (clipState === "on" && full && clipStore === "postgres") {
+        // Same transaction as the lock. Not caught: a failed statement aborts the transaction anyway.
+        clipMatches = await nearestPhotosPg(tx, full, c.claimPublicId);
+        await storePhotoVariantsPg(tx, c.claimPublicId, crops);
+      } else if (clipState === "on" && full) {
         try {
-          clipMatches = await nearestPhotos(crops.find((v) => v.variant === "full")!.vec, c.claimPublicId);
+          clipMatches = await nearestPhotos(full, c.claimPublicId);
           await indexPhotoVariants(c.claimPublicId, crops);
         } catch (e) {
           clipState = "error";
@@ -157,6 +168,7 @@ export async function checkPhotoStep(claimId: string): Promise<PhotoResult> {
     nearDuplicate: bestRule !== null,
     rule: bestRule,
     clip: clipState,
+    clipStore,
     unavailable: clipState === "error",
     error,
   };

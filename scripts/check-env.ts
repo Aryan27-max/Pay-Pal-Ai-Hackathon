@@ -65,7 +65,7 @@ const OPTIONAL_ANY = ["ELASTIC_API_KEY", "AI_DEMO_CACHE", "RENDER_API_KEY", "REN
 const WHERE: Record<string, string> = {
   CLAIM_ID_SALT: "generate: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
   REVIEWER_ACCESS_TOKEN: "generate the same way as CLAIM_ID_SALT",
-  DATABASE_URL: "local Docker Postgres: postgresql://relief:relief@localhost:5433/relief (npm run setup starts it)",
+  DATABASE_URL: "local Docker Postgres: postgresql://relief:relief@localhost:5433/relief (npm run setup starts it), or a free hosted Neon Postgres URL with ?sslmode=require",
   PAYPAL_CLIENT_ID: "developer.paypal.com → Apps & Credentials → Sandbox → your app",
   PAYPAL_CLIENT_SECRET: "developer.paypal.com → Apps & Credentials → Sandbox → your app",
   NEXT_PUBLIC_PAYPAL_CLIENT_ID: "same value as PAYPAL_CLIENT_ID",
@@ -322,7 +322,7 @@ async function main(): Promise<void> {
         return new Set(all).size === all.length;
       })(),
     ],
-    ["CLIP_MODE is local (transformers.js on CPU)", (env.CLIP_MODE ?? "local").trim() === "local"],
+    ["CLIP_MODE is local (transformers.js on CPU) or off (perceptual hash only)", ["", "local", "off"].includes((env.CLIP_MODE ?? "").trim())],
     ["WHISPER_MODE is groq or local", ["groq", "local", ""].includes((env.WHISPER_MODE ?? "").trim())],
     ["ELASTIC_URL is local http or an https Cloud URL with ELASTIC_API_KEY", !elasticUrl || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(elasticUrl) || (elasticUrl.startsWith("https://") && isSet("ELASTIC_API_KEY"))],
     ["Zapier URLs (if set) are Catch Hooks", ["ZAPIER_REVIEW_WEBHOOK_URL", "ZAPIER_ALERT_WEBHOOK_URL"].every((k) => !isSet(k) || (env[k] ?? "").startsWith("https://hooks.zapier.com/hooks/catch/"))],

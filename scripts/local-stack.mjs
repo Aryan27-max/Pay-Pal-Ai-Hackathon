@@ -35,12 +35,24 @@ function tcpOpen(port) {
   });
 }
 
+const LOCAL_PG = /@(localhost|127\.0\.0\.1):5433\//;
+const LOCAL_ES = /^http:\/\/(localhost|127\.0\.0\.1)/;
+
+/** The Docker containers this .env needs. Empty = hosted Postgres (Neon, Supabase, ...) and no local Elasticsearch: no Docker at all. */
+export function localServices(env) {
+  const services = [];
+  if (LOCAL_PG.test(env.DATABASE_URL ?? "")) services.push("postgres");
+  if (LOCAL_ES.test(env.ELASTIC_URL ?? "")) services.push("elasticsearch");
+  return services;
+}
+
 /** Docker Desktop's port forward can lag the container healthcheck by a few seconds: wait for the host side. */
 export async function waitForStack(env, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
-  const useLocalEs = /^http:\/\/(localhost|127\.0\.0\.1)/.test(env.ELASTIC_URL ?? "");
+  const needs = localServices(env);
+  const useLocalEs = needs.includes("elasticsearch");
   for (;;) {
-    const pg = await tcpOpen(5433);
+    const pg = !needs.includes("postgres") || (await tcpOpen(5433));
     let es = !useLocalEs;
     if (useLocalEs) {
       try {
@@ -57,9 +69,7 @@ export async function waitForStack(env, timeoutMs = 90_000) {
 
 /** Start the containers this .env needs (Postgres if DATABASE_URL is local, Elasticsearch if ELASTIC_URL is local). */
 export function composeUp(env) {
-  const services = [];
-  if (/@(localhost|127\.0\.0\.1):5433\//.test(env.DATABASE_URL ?? "")) services.push("postgres");
-  if (/^http:\/\/(localhost|127\.0\.0\.1)/.test(env.ELASTIC_URL ?? "")) services.push("elasticsearch");
+  const services = localServices(env);
   if (!services.length) return [];
   run(`docker compose up -d --wait ${services.join(" ")}`);
   return services;

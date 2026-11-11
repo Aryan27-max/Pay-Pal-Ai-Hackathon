@@ -10,12 +10,13 @@
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
-import { composeUp, dockerOk, readEnv, run, waitForStack } from "./local-stack.mjs";
+import { composeUp, dockerOk, localServices, readEnv, run, waitForStack } from "./local-stack.mjs";
 
 const step = (n, s) => console.log(`\n\x1b[1m[setup ${n}/6] ${s}\x1b[0m`);
 
 step(1, ".env");
-if (!fs.existsSync(".env")) {
+// A missing OR empty .env (e.g. created by an editor) starts from the template.
+if (!fs.existsSync(".env") || !fs.readFileSync(".env", "utf8").trim()) {
   fs.copyFileSync(".env.example", ".env");
   console.log("Created .env from .env.example.");
 } else console.log(".env found (values are never printed).");
@@ -41,13 +42,16 @@ if (missing.length) {
 }
 
 step(2, "Docker: local Postgres + Elasticsearch");
-if (!dockerOk()) {
-  console.error("Docker is not running. Start Docker Desktop (free) and re-run npm run setup.");
-  process.exit(1);
+if (!localServices(env).length) {
+  console.log("DATABASE_URL is a hosted Postgres and ELASTIC_URL is not local: no Docker needed.");
+} else {
+  if (!dockerOk()) {
+    console.error("Docker is not running. Start Docker Desktop (free) and re-run npm run setup.\nNo Docker? Put a hosted Postgres URL (e.g. Neon's free plan) in DATABASE_URL and leave ELASTIC_URL empty.");
+    process.exit(1);
+  }
+  console.log(`running: ${composeUp(env).join(", ")}`);
+  await waitForStack(env);
 }
-const started = composeUp(env);
-console.log(started.length ? `running: ${started.join(", ")}` : "DATABASE_URL / ELASTIC_URL point elsewhere: no local containers needed.");
-await waitForStack(env);
 
 step(3, "Database migrations");
 run("npx prisma migrate deploy");

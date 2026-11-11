@@ -348,13 +348,14 @@ The tunnel URL changes every time, so register the webhook again each time. With
 - **Graceful degradation:** only PayPal sandbox, Gemini and Postgres are required.
 - **No paid hosting needed** to try it: judges run it locally with the commands above.
 
-## Deployment (optional)
-The submission runs locally (above). `render.yaml` is a ready Blueprint for **one free Render web service**, if you want a hosted copy:
-- **Memory:** Render's free instance has **512 MB**. We measured the production server (`next build && next start`) at **416 MB peak** after four claims, with CLIP loaded lazily as q4 weights, a lean ONNX session and `NODE_OPTIONS=--max-old-space-size=192` (all set in `render.yaml`; q8 peaked at 538 MB). All the photo fakes are still caught at q4.
-- **Database:** Render's free Postgres is deleted after 30 days, so use **Neon's free plan** (permanent, no card): put its connection string in `DATABASE_URL`, then run `npx prisma migrate deploy` and `npx tsx scripts/seed.ts` once.
-- **Elasticsearch:** there's no free hosted option in this plan, so leave `ELASTIC_URL` empty. The perceptual hash still catches resized and re-compressed copies, but the **cropped and heavy-edit fakes are only caught with Elasticsearch** (local run).
-- **Speed:** the first claim after a cold start loads CLIP (17 s locally; slower on the free plan's shared CPU).
+## Deployment (free hosting)
+The app also runs hosted on **free tiers only**: **one free Render web service** (the `render.yaml` Blueprint) plus **Neon's free Postgres**.
+- **Memory:** Render's free instance has **512 MB**. We measured the production server (`next build && next start`) at **416 MB peak** after four claims, with CLIP loaded lazily as q4 weights, a lean ONNX session and `NODE_OPTIONS=--max-old-space-size=192` (all set in `render.yaml`; q8 peaked at 538 MB). If the host ever runs out of memory, `CLIP_MODE=off` skips the model and uses the perceptual hash only.
+- **Database:** Render's free Postgres is deleted after 30 days, so use **Neon** (permanent, no card). Supabase is untested: its free projects pause after 7 days without activity, and its pooler certificate may fail our strict TLS check. The Render build runs `prisma migrate deploy`.
+- **No Elasticsearch needed:** with `ELASTIC_URL` empty, the multi-crop CLIP embeddings are stored and compared in **Postgres** with the same rule, and vouching also uses Postgres, so the cropped and heavy-edit fakes are still caught.
+- **Cold starts:** the free service sleeps after 15 minutes idle and takes about a minute to wake. The first claim after a wake-up also loads CLIP, which takes 17 s locally and longer on the free plan's shared CPU.
 - **Webhooks:** register `<your-render-url>/api/webhooks/paypal` and set `PAYPAL_WEBHOOK_ID`.
+- **Not used for hosting:** Vercel, because it is serverless (no background trail or recovery loops) and the CLIP runtime is over its function size limit. Railway, because it has no ongoing free plan.
 
 ---
 

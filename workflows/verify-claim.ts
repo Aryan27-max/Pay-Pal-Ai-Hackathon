@@ -172,7 +172,7 @@ export async function finalizeClaim(claimId: string, checks: CheckResults & { ti
       feeds: location.feeds,
       kernel: { status: location.kernel.status, matched: location.kernel.matched, hazards: location.kernel.hazards.slice(0, 8), cached: location.kernel.cached ?? false, error: location.kernel.error },
     },
-    photo: { exif: exif.reason, exifFactor: exif.factor, clip: photo.clip, nearestClaim: photo.nearest?.claimPublicId ?? null, cosine: photo.nearest?.cosine ?? null, dhashDistance: photo.nearest?.dhash ?? null, nearRule: photo.rule, threshold: photo.threshold, nearDuplicate: photo.nearDuplicate, unavailable: photo.unavailable, error: photo.error },
+    photo: { exif: exif.reason, exifFactor: exif.factor, clip: photo.clip, clipStore: photo.clipStore ?? null, nearestClaim: photo.nearest?.claimPublicId ?? null, cosine: photo.nearest?.cosine ?? null, dhashDistance: photo.nearest?.dhash ?? null, nearRule: photo.rule, threshold: photo.threshold, nearDuplicate: photo.nearDuplicate, unavailable: photo.unavailable, error: photo.error },
     message: { typed: message.hasText, voice: message.hasVoice, transcribed: message.transcribed, language: message.language, durationSec: message.durationSec, error: message.error },
     uniqueness: { duplicateEmail: uq.sameEmail, duplicatePhoto: uq.samePhoto, nearDuplicatePhoto: photo.nearDuplicate, reason: duplicateReason(dup) },
     vouching: { nearbyVerified: vouching.nearbyVerified, radiusKm: vouching.radiusKm, source: vouching.source, unavailable: vouching.unavailable, error: vouching.error },

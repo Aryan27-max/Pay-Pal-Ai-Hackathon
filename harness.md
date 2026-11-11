@@ -104,6 +104,8 @@ Outputs `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md` and `graphify-
   - [ ] PayPal Agent Toolkit: skipped (no payouts tool; direct tool calls undocumented)
   - [x] Deploy prep: peak 416 MB on the production server (CLIP q4 + lean ONNX + 192 MB heap cap; was 538 MB), all fakes still caught; plan = Render free web + Neon free Postgres
   - [ ] Deploy: not for the submission (decision Nov 8). We submit with local run instructions; `render.yaml` kept, README → Deployment (optional)
+  - [x] Free-tier deploy prep (Nov 11): Render free web + Neon free Postgres; no hosted Elasticsearch needed (CLIP crops stored/compared in Postgres `photo_embedding` when `ELASTIC_URL` is empty, same rule); `CLIP_MODE=off` escape hatch; setup/dev:local skip Docker for a hosted DB; `render.yaml` complete (Solana + budgets)
+  - [ ] Free-tier deploy live: deploy the Blueprint with a Neon DATABASE_URL, then `npm run demo` against the Render URL
 - [x] **Submission readiness (Nov 8)**
   - [x] `npm run demo -- --runs 3` 3/3 (cache on); 1 live run on `next start` (cache off: 7 Gemini calls, 30/400 today)
   - [x] 127 unit tests, typecheck, `test:e2e`, Newman 22/22 requests · 40/40 assertions, `check:robustness`
