@@ -383,6 +383,8 @@ The app also runs hosted on **free tiers only**: **one free Render web service**
 - In dev mode, the first page you open after starting the server may reload a few times while it compiles. Seen in a OneDrive-synced folder.
 - Test money only. A real deployment needs PayPal production approval, Enterprise Payouts for PYUSD, and a privacy review.
 
+Made with <3 By Aryan and Adish!
+
 ## Credits
 Demo claim photos are public-domain FEMA images and one public-domain AI-generated image from Wikimedia Commons. The cropped and heavy-edit fakes are derived from one of them. The contradicting voice note is self-made with Windows text-to-speech. Brand logos are from [Simple Icons](https://simpleicons.org) (CC0) and the companies' own sites; they belong to their owners. See [simulators/fixtures/photos/CREDITS.md](simulators/fixtures/photos/CREDITS.md) and [simulators/fixtures/audio/README.md](simulators/fixtures/audio/README.md).
 
