@@ -4,6 +4,9 @@
 
 ### Charity-stream money, paid **directly** to verified people in a disaster zone, with a public receipt that shows where every dollar went.
 
+<img width="845" height="513" alt="image" src="https://github.com/user-attachments/assets/91655a67-6e8f-485d-bc83-1d455ac767e3" />
+
+
 <sub>Built for the **PayPal "Build What's Next with PayPal and AI"** hackathon · PayPal **sandbox** and Solana **devnet** only (test money) · runs locally for **$0**</sub>
 
 <br/>
